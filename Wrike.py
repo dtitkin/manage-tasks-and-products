@@ -18,10 +18,13 @@ class OopsException(Exception):
 class Wrike():
     def __init__(self, wrike_token, debugMode=False):
         self.debugMode = debugMode
-        self.params = {"access_token": wrike_token}
+        self.headers = {"Authorization": "bearer " + wrike_token}
+        self.params = {}
+        self.data = {}
         self.connect = "https://www.wrike.com/api/v4/"
         if debugMode:
-            resp = rs.get(self.connect + "account", self.params)
+            resp = rs.get(self.connect + "account",
+                          self.params, headers=self.headers)
             pprint(resp.json())
 
     def test(self, resp):
@@ -38,24 +41,40 @@ class Wrike():
                         pprint(value[0])
                         print(f"----- {len(value)-1} значение-----")
                         pprint(value[-1])
+                    if key == "errorDescription" or key == "error":
+                        pprint(value)
             except OopsException as e:
                 print("Тест сломался", e)
 
-    def make_params(local_dict, exclude_list):
+    def make_params(self, local_dict, exclude_list):
+        params = {}
         for arg_name, arg_value in local_dict.items():
             if arg_name not in exclude_list and arg_value:
-                task_params[arg_name] = arg_value
+                params[arg_name] = arg_value
         if self.debugMode:
-            pprint(task_params)
+            pprint(params)
+        return params
 
     def rs_get(self, get_str, **kwargs):
         'выполнение любого запроса get'
-        get_params = self.params.copy()
-        get_params.update(kwargs)
-        resp = rs.get(self.connect + get_str, get_params)
+        self.params = kwargs.copy()
+        try:
+            resp = rs.get(self.connect + get_str, self.params,
+                          headers=self.headers)
+        finally:
+            self.params = {}
         self.test(resp)
         return resp
 
+    def rs_post(self, post_str, **kwargs):
+        self.data = kwargs.copy()
+        try:
+            resp = rs.post(self.connect + post_str, self.data,
+                           headers=self.headers)
+        finally:
+            self.data = {}
+        self.test(resp)
+        return resp
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
                   importance=None, startDate=None, dueDate=None,
@@ -72,9 +91,10 @@ class Wrike():
                         tasks/{taskId},{taskId},... - up to 100 IDs
             descendants - bool
         '''
-        task_params = slef.make_params(locals(),
+        task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
         resp = self.rs_get(task_area, **task_params)
+        return resp
 
     def create_task(self, folderid, title, status="Active",
                     importance="Normal", dates=None, shareds=None,
@@ -82,8 +102,10 @@ class Wrike():
                     customFields=None, fields=None):
         '''Создать задачу
         '''
-        task_params = slef.make_params(locals())
-
+        task_dates = self.make_params(locals(),
+                                      ["self", "folderid", "task_dates"])
+        resp = self.rs_post("folders/" + folderid + "/tasks", **task_dates)
+        return resp
 
     def id_contacts_on_email(self, email_list):
         resp = self.rs_get("contacts")
@@ -98,11 +120,23 @@ class Wrike():
             pprint(id_dict)
         return id_dict
 
+    def id_folders_on_name(self, foldersname_list):
+        resp = self.rs_get("folders")
+        data = resp.json()["data"]
+        folders_dict = {name: None for name in foldersname_list}
+        for folder in data:
+            if folder["title"] in foldersname_list:
+                folders_dict[folder["title"]] = folder["id"]
+        if self.debugMode:
+            pprint(folders_dict)
+        return folders_dict
+
 
 # Тестирование класса
 def test_connect():
     token = os.getenv("wriketoken")
     wr = Wrike(token, debugMode=True)
+    data = resp.json()["data"]
 
 
 def test_rs_get():
@@ -125,9 +159,23 @@ def test_get_tasks():
     resp = wr.get_tasks("tasks", limit=10)
 
 
+def test_id_folders_on_name():
+    token = os.getenv("wriketoken")
+    wr = Wrike(token, debugMode=True)
+    wr.id_folders_on_name(["ТДВ ТЕСТ НОВЫЕ ПРОДУКТЫ", "Нет такой папки"])
+
+
+def test_create_task():
+    token = os.getenv("wriketoken")
+    wr = Wrike(token, debugMode=True)
+    wr.create_task("IEAEARAJI4S3SHMJ", "Тестовая задача")
+
+
 if __name__ == '__main__':
     # test_connect()
     # test_rs_get()
-    #test_id_contacts_on_email()
+    # test_id_contacts_on_email()
     #test_get_tasks()
+    # test_id_folders_on_name()
+    #test_create_task()
 

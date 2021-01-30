@@ -38,9 +38,12 @@ class Wrike():
                     if key == "data":
                         print("----- 0 значение-----")
                         pprint(value[0])
-                        print(f"----- {len(value)-1} значение-----")
-                        pprint(value[-1])
-                    if key == "errorDescription" or key == "error":
+                        if (len(value) - 1) > 0:
+                            print(f"----- {len(value)-1} значение-----")
+                            pprint(value[-1])
+                    elif key == "errorDescription" or key == "error":
+                        pprint(value)
+                    else:
                         pprint(value)
             except OopsException as e:
                 print("Тест сломался", e)
@@ -76,6 +79,11 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
+        return resp.json()["data"]
+
+    def rs_del(self, del_str, **kwargs):
+        resp = rs.delete(self.connect + del_str, headers=self.headers)
+        self.test(resp)
         return resp.json()
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
@@ -100,13 +108,20 @@ class Wrike():
 
     def create_task(self, folderid, title, status="Active",
                     importance="Normal", dates=None, shareds=None,
-                    parents=None, responsibles=None, superTasks=None,
-                    customFields=None, fields=None):
+                    parents=None, responsibles=None, priorityAfter=None,
+                    superTasks=None, customFields=None, fields=None):
         '''Создать задачу
         '''
         task_dates = self.make_params(locals(),
                                       ["self", "folderid", "task_dates"])
-        resp = self.rs_post("folders/" + folderid + "/tasks", **task_dates)
+        resp = self.rs_post(f"folders/{folderid}/tasks", **task_dates)
+        return resp
+
+    def create_dependency(self, taskid, predecessorId=None, successorId=None,
+                          relationType=None):
+        task_dates = self.make_params(locals(),
+                                      ["self", "taskid", "task_dates"])
+        resp = self.rs_post(f"tasks/{taskid}/dependencies", **task_dates)
         return resp
 
     def id_contacts_on_email(self, email_list):

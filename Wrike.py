@@ -21,6 +21,7 @@ class Wrike():
         self.params = {}
         self.data = {}
         self.connect = "https://www.wrike.com/api/v4/"
+        self.customfields = self.custom_field_dict()
         if debugMode:
             resp = rs.get(self.connect + "account",
                           self.params, headers=self.headers)
@@ -123,6 +124,37 @@ class Wrike():
                                       ["self", "taskid", "task_dates"])
         resp = self.rs_post(f"tasks/{taskid}/dependencies", **task_dates)
         return resp
+
+    def custom_field_dict(self):
+        'Словарь полей для управления продуктами'
+        resp = self.rs_get("customfields")
+        list_template = ["Норматив часы", "Номер этапа", "Номер задачи",
+                         "Стратегическая группа", "Руководитель проекта",
+                         "Клиент", "Бренд", "Код-1С", "Название рабочее",
+                         "Группа", "Линейка"]
+        return_dict = {}
+        for field in resp:
+            if field["title"] in list_template:
+                return_dict[field["title"]] = field["id"]
+        if self.debugMode:
+            print(len(return_dict) == len(list_template))
+            pprint(return_dict)
+        return return_dict
+
+    def custom_field_arr(self, name_value_dict):
+        '''Возращает массив для custom field
+
+        Если хоть один элемент не находится в шаблон то вернет None
+        '''
+        return_list = []
+        for name, value in name_value_dict.items():
+            d = self.customfields.get(name)
+            if d:
+                return_list.append({"id": d, "value": value})
+            else:
+                return_list = None
+                break
+        return return_list
 
     def id_contacts_on_email(self, email_list):
         resp = self.rs_get("contacts")

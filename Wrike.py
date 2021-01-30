@@ -82,6 +82,16 @@ class Wrike():
         self.test(resp)
         return resp.json()["data"]
 
+    def rs_put(self, put_str, **kwargs):
+        self.data = kwargs.copy()
+        try:
+            resp = rs.put(self.connect + put_str, self.data,
+                          headers=self.headers)
+        finally:
+            self.data = {}
+        self.test(resp)
+        return resp.json()["data"]
+
     def rs_del(self, del_str, **kwargs):
         resp = rs.delete(self.connect + del_str, headers=self.headers)
         self.test(resp)
@@ -107,7 +117,7 @@ class Wrike():
         resp = self.rs_get(task_area, **task_params)
         return resp
 
-    def create_task(self, folderid, title, status="Active",
+    def create_task(self, folderid, title, description=None, status="Active",
                     importance="Normal", dates=None, shareds=None,
                     parents=None, responsibles=None, priorityAfter=None,
                     superTasks=None, customFields=None, fields=None):
@@ -116,6 +126,17 @@ class Wrike():
         task_dates = self.make_params(locals(),
                                       ["self", "folderid", "task_dates"])
         resp = self.rs_post(f"folders/{folderid}/tasks", **task_dates)
+        return resp
+
+    def update_task(self, taskid, title=None, description=None, status=None,
+                    importance=None, dates=None, addParents=None,
+                    removeParents=None, priorityAfter=None, addSuperTasks=None,
+                    removeSuperTasks=None, customFields=None):
+        '''Обновить задачу
+        '''
+        task_dates = self.make_params(locals(),
+                                      ["self", "taskid", "task_dates"])
+        resp = self.rs_put(f"tasks/{taskid}", **task_dates)
         return resp
 
     def create_dependency(self, taskid, predecessorId=None, successorId=None,
@@ -155,6 +176,19 @@ class Wrike():
                 return_list = None
                 break
         return return_list
+
+    def dates_arr(self, type_="Planned", duration=480, start="", due="",
+                  workOnWeekends="False"):
+        if type_ == "Milestone":
+            duration = 0
+        r_d = {"type": type_, "workOnWeekends": workOnWeekends}
+        if start:
+            r_d["start"] = start
+        if due:
+            r_d["due"] = due
+        if duration:
+            r_d["duration"] = duration
+        return r_d
 
     def id_contacts_on_email(self, email_list):
         resp = self.rs_get("contacts")

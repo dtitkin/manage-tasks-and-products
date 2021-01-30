@@ -2,7 +2,6 @@
 # в модуле реализованна минимальная часть работы с API
 # достаточная для  "Управление продуктами и задачами"
 # полная документация на API
-# https://developers.google.com/sheets/api
 # https://developers.wrike.com/overview/
 
 
@@ -50,7 +49,10 @@ class Wrike():
         params = {}
         for arg_name, arg_value in local_dict.items():
             if arg_name not in exclude_list and arg_value:
-                params[arg_name] = arg_value
+                if isinstance(arg_value, dict) or isinstance(arg_value, list):
+                    params[arg_name] = str(arg_value)
+                else:
+                    params[arg_name] = arg_value
         if self.debugMode:
             pprint(params)
         return params
@@ -64,7 +66,7 @@ class Wrike():
         finally:
             self.params = {}
         self.test(resp)
-        return resp
+        return resp.json()["data"]
 
     def rs_post(self, post_str, **kwargs):
         self.data = kwargs.copy()
@@ -74,7 +76,7 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
-        return resp
+        return resp.json()
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
                   importance=None, startDate=None, dueDate=None,
@@ -109,9 +111,8 @@ class Wrike():
 
     def id_contacts_on_email(self, email_list):
         resp = self.rs_get("contacts")
-        data = resp.json()["data"]
         id_dict = {mail: None for mail in email_list}
-        for user in data:
+        for user in resp:
             if user['type'] == 'Person':
                 user_mail = user["profiles"][0]["email"]
                 if user_mail in email_list:
@@ -122,9 +123,8 @@ class Wrike():
 
     def id_folders_on_name(self, foldersname_list):
         resp = self.rs_get("folders")
-        data = resp.json()["data"]
         folders_dict = {name: None for name in foldersname_list}
-        for folder in data:
+        for folder in resp:
             if folder["title"] in foldersname_list:
                 folders_dict[folder["title"]] = folder["id"]
         if self.debugMode:
@@ -133,10 +133,10 @@ class Wrike():
 
 
 # Тестирование класса
-def test_connect():
+'''def test_connect():
     token = os.getenv("wriketoken")
     wr = Wrike(token, debugMode=True)
-    data = resp.json()["data"]
+
 
 
 def test_rs_get():
@@ -156,7 +156,7 @@ def test_id_contacts_on_email():
 def test_get_tasks():
     token = os.getenv("wriketoken")
     wr = Wrike(token, debugMode=True)
-    resp = wr.get_tasks("tasks", limit=10)
+    resp = wr.get_tasks("tasks", limit=20)
 
 
 def test_id_folders_on_name():
@@ -172,10 +172,9 @@ def test_create_task():
 
 
 if __name__ == '__main__':
-    # test_connect()
+    test_connect()
     # test_rs_get()
     # test_id_contacts_on_email()
-    #test_get_tasks()
+    # test_get_tasks()
     # test_id_folders_on_name()
-    #test_create_task()
-
+    # test_create_task()'''

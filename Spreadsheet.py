@@ -166,7 +166,7 @@ class Spreadsheet():
                 majorDimension=majorDimension).execute()
             if self.debugMode:
                 pprint(getRes)
-        return getRes
+        return getRes["values"]
 
 
 # Функции тестирования класса
@@ -246,13 +246,13 @@ def test_set_values():
 def test_get_values():
     ss = Spreadsheet(CREDENTIALS_FILE, debugMode=True)
     ss.set_spreadsheet_byid(TABLE_ID_TEST)
-    res = ss.values_get("B1:F2")'''
+    res = ss.values_get("B1:F2")
 
 
 if __name__ == '__main__':
-    # test_set_spreadsheet_byid()
-    # test_togrid_range()
-    # test_cellformat()
-    # test_cells_fieldarguments()
-    # test_set_valuess()
-    # test_get_values()
+    test_set_spreadsheet_byid()
+    test_togrid_range()
+    test_cellformat()
+    test_cells_fieldarguments()
+    test_set_valuess()
+    test_get_values()'''

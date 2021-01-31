@@ -201,9 +201,47 @@ def create_template(work, sheet_and_range):
     print("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
+def set_conacts_on_table():
+    ''' Загружает в Гугл таблицу пользователей на страницу ресурсы
+    '''
+    t_start = time.time()
+    print("Приосоединяемся к Гугл")
+    ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
+    ss.set_spreadsheet_byid(TABLE_ID)
+
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+
+    # print("Получить ")
+    # table = ss.values_get(sheet_and_range)
+    print("Получить список контактов из Wrike")
+    resp = wr.rs_get("contacts")
+    # pprint(resp)
+    value = []
+    for row in resp:
+        fn = row["firstName"]
+        ln = row["lastName"]
+        user_name = ln + " " + fn
+        # user_id = row["id"]
+        user_mail = str(row["profiles"][0].get("email"))
+        if user_mail.find("wrike") == -1 and user_mail.find("None") == -1:
+            row_list = [user_name, "", user_mail]
+            value.append(row_list)
+
+    print("Записать данные в таблицу")
+    num_row = 49 + len(value)
+    my_range = "B50:D" + str(num_row)
+    # тестируем установку одного значения на страницу
+    ss.sheetTitle = "Ресурсы"
+    ss.prepare_setvalues(my_range, value)
+    ss.run_prepared()
+    t_finish = time.time()
+    print("Выполненно за:", int(t_finish - t_start), " секунд")
+
+
 if __name__ == '__main__':
-    #work = "all"
-    #sheet_and_range = "Задачи этапов!A20:I92"
-    #create_template(work, sheet_and_range)
-    #  установка контактов в таблицу
-    set_conacts_on_table(work)
+    # work = "all"
+    # sheet_and_range = "Задачи этапов!A20:I92"
+    # create_template(work, sheet_and_range)
+    # установка контактов в таблицу
+    set_conacts_on_table()

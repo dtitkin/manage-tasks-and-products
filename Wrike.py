@@ -6,8 +6,9 @@
 
 
 from pprint import pprint
+from datetime import date
+
 import requests as rs
-import os
 
 
 class OopsException(Exception):
@@ -28,6 +29,8 @@ class Wrike():
             pprint(resp.json())
 
     def test(self, resp):
+        ''' выводит значение ответа от Api при debugMode=True
+        '''
         if self.debugMode:
             print(resp.status_code)
             try:
@@ -50,6 +53,8 @@ class Wrike():
                 print("Тест сломался", e)
 
     def make_params(self, local_dict, exclude_list):
+        ''' создает строку параметров для передачи в запрос
+        '''
         params = {}
         for arg_name, arg_value in local_dict.items():
             if arg_name not in exclude_list and arg_value:
@@ -73,6 +78,7 @@ class Wrike():
         return resp.json()["data"]
 
     def rs_post(self, post_str, **kwargs):
+        'выполнение любого запроса post'
         self.data = kwargs.copy()
         try:
             resp = rs.post(self.connect + post_str, self.data,
@@ -83,6 +89,7 @@ class Wrike():
         return resp.json()["data"]
 
     def rs_put(self, put_str, **kwargs):
+        'выполнение любого запроса put'
         self.data = kwargs.copy()
         try:
             resp = rs.put(self.connect + put_str, self.data,
@@ -93,6 +100,7 @@ class Wrike():
         return resp.json()["data"]
 
     def rs_del(self, del_str, **kwargs):
+        'выполнение любого запроса del'
         resp = rs.delete(self.connect + del_str, headers=self.headers)
         self.test(resp)
         return resp.json()
@@ -105,12 +113,10 @@ class Wrike():
         '''Получить задачи с параметрами поиска
 
         https://developers.wrike.com/api/v4/tasks/
-        Аргументы
             task_area - tasks
                         folders/{folderId}/tasks
                         spaces/{spaceId}/tasks
                         tasks/{taskId},{taskId},... - up to 100 IDs
-            descendants - bool
         '''
         task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
@@ -122,6 +128,8 @@ class Wrike():
                     parents=None, responsibles=None, priorityAfter=None,
                     superTasks=None, customFields=None, fields=None):
         '''Создать задачу
+
+        https://developers.wrike.com/api/v4/tasks/
         '''
         task_dates = self.make_params(locals(),
                                       ["self", "folderid", "task_dates"])
@@ -139,15 +147,59 @@ class Wrike():
         resp = self.rs_put(f"tasks/{taskid}", **task_dates)
         return resp
 
+    def update_milestone_date(self, folderid, root_task_id):
+        '''Обновляет дату у всех вех внутри задачи с переносом не текущую
+        '''
+        fld = str(["subTaskIds"])
+        resp = self.get_tasks(f"folders/{folderid}/tasks",
+                              subTasks="True", fields=fld)
+        # перебираем все вехи кроме root, находим максимальную дату
+        # завершения у подзадач и переноим веху на эту дату
+        root_date = date.today()
+        root_need_change = False
+        for task in resp:
+            if task["id"] == root_task_id:
+                continue
+            type_task = task.get("dates")["type"]
+            if type_task == "Milestone" and task["status"] == "Active":
+                sub_task_ids = task.get("subTaskIds")
+                max_date = date.today()
+                for sub_task_id in sub_task_ids:
+                    for f_task in resp:
+                        arg_1 = f_task["id"] == sub_task_id
+                        arg_2 = f_task["status"] == "Active"
+                        if arg_1 and arg_2:
+                            my_date = self.get_date_from_task(f_task,
+                                                              max_date)
+                            if max_date < my_date:
+                                max_date = my_date
+                            break
+                # заменим дату у вехи если она меньше чем max_date
+                my_date = self.get_date_from_task(task, max_date)
+                if max_date > my_date:
+                    root_need_change = True
+                    root_date = max_date
+                    dt = self.dates_arr(type_="Milestone",
+                                        due=max_date.isoformat())
+                    self.update_task(task["id"], dates=dt)
+        if root_need_change:
+            dt = self.dates_arr(type_="Milestone", due=root_date.isoformat())
+            self.update_task(root_task_id, dates=dt)
+
     def create_dependency(self, taskid, predecessorId=None, successorId=None,
                           relationType=None):
+        '''Установить связи у задачи - предыдущие задачи
+        '''
         task_dates = self.make_params(locals(),
                                       ["self", "taskid", "task_dates"])
         resp = self.rs_post(f"tasks/{taskid}/dependencies", **task_dates)
         return resp
 
     def custom_field_dict(self):
-        'Словарь полей для управления продуктами'
+        '''Словарь пользовательских полей для управления продуктами.
+        по названию поля находит его id
+        словарь хранится как атрибут объекта
+        '''
         resp = self.rs_get("customfields")
         list_template = ["Норматив часы", "Номер этапа", "Номер задачи",
                          "Стратегическая группа", "Руководитель проекта",
@@ -179,6 +231,8 @@ class Wrike():
 
     def dates_arr(self, type_="Planned", duration=480, start="", due="",
                   workOnWeekends="False"):
+        ''' возвращает объект - словарь для поля dates у задач
+        '''
         if type_ == "Milestone":
             duration = 0
         r_d = {"type": type_, "workOnWeekends": workOnWeekends}
@@ -190,7 +244,32 @@ class Wrike():
             r_d["duration"] = duration
         return r_d
 
+    def get_date_from_task(selff, task, max_date, s_d="due"):
+        ''' из полей due или start у задачи возвращает дату
+        '''
+        try:
+            n_date = task.get("dates")[s_d]
+            y, m, d = map(int, n_date[0:10].split('-'))
+            my_date = date(y, m, d)
+            return my_date
+        except TypeError:
+            return max_date
+        except ValueError:
+            return max_date
+
+    def deskr_from_str(self, deskr_str):
+        ''' если в описание задачи нужно поместить список
+        '''
+        descr_lst = deskr_str.split(";")
+        return_descr = ""
+        for one_str in descr_lst:
+            return_descr += "<li>" + one_str + "</li>"
+        return return_descr
+
     def id_contacts_on_email(self, email_list):
+        ''' по списку email  возвоащает такой же по размеру список id
+            None там где не нашел email
+        '''
         resp = self.rs_get("contacts")
         id_dict = {mail: None for mail in email_list}
         for user in resp:
@@ -203,6 +282,7 @@ class Wrike():
         return id_dict
 
     def id_folders_on_name(self, foldersname_list):
+        ' по имени папки или проекта возвразает id проекта'
         resp = self.rs_get("folders")
         folders_dict = {name: None for name in foldersname_list}
         for folder in resp:

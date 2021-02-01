@@ -66,8 +66,31 @@ class Wrike():
             pprint(params)
         return params
 
-    def rs_get(self, get_str, **kwargs):
-        'выполнение любого запроса get'
+    def manage_return(self, resp, arr):
+        ''' определяет что вернуть из response на основании arr
+
+            arr="data" or "json" or key in resp Wrike
+            При arr == "data" всегда возвращает список
+            При arr == "resp" возворащает объект response
+
+        '''
+        if arr == "data":
+            ls = resp.json().get("data")
+            if ls is None:
+                ls = list()
+            return ls
+        elif arr == "resp":
+            return resp
+        elif arr == "json":
+            return resp.json()
+        else:
+            return resp.json()[arr]
+
+    def rs_get(self, get_str, arr="data", **kwargs):
+        '''выполнение любого запроса get
+
+        возвращает status_code, resp.json()[arr]
+        '''
         self.params = kwargs.copy()
         try:
             resp = rs.get(self.connect + get_str, self.params,
@@ -75,7 +98,7 @@ class Wrike():
         finally:
             self.params = {}
         self.test(resp)
-        return resp.json()["data"]
+        return self.manage_return(resp, arr)
 
     def rs_post(self, post_str, **kwargs):
         'выполнение любого запроса post'
@@ -120,7 +143,7 @@ class Wrike():
         '''
         task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
-        resp = self.rs_get(task_area, **task_params)
+        resp= self.rs_get(task_area, **task_params)
         return resp
 
     def create_task(self, folderid, title, description=None, status="Active",

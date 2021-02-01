@@ -69,6 +69,7 @@ class Spreadsheet():
         self.spreadsheetId = spreadsheet['spreadsheetId']
         self.sheetId = spreadsheet['sheets'][0]['properties']['sheetId']
         self.sheetTitle = spreadsheet['sheets'][0]['properties']['title']
+        return spreadsheet
 
     # spreadsheets.batchUpdate и spreadsheets.values.batchUpdate
     def run_prepared(self, valueInputOption="USER_ENTERED"):
@@ -156,13 +157,19 @@ class Spreadsheet():
                                 "fields": fields}})
 
     def values_get(self, cellsRange, majorDimension="ROWS"):
+        sheet_and_range = cellsRange.split("!")
+        if len(sheet_and_range) == 2:
+            self.sheetTitle = sheet_and_range[0]
+            cellsRange = sheet_and_range[1]
         if self.spreadsheetId is None:
             raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
         getRes = []
         if len(cellsRange) > 0:
             getRes = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheetId,
-                range=cellsRange,
+                range= self.sheetTitle + "!" + cellsRange,
                 majorDimension=majorDimension).execute()
             if self.debugMode:
                 pprint(getRes)

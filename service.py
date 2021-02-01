@@ -67,16 +67,21 @@ def create_template(work, sheet_and_range):
     print("Получить шаблон задач из Гугл")
     table = ss.values_get(sheet_and_range)
 
-    print("Получить папку, корневую задачу, словарь полей из Wrike")
+    print("Получить папку, корневую задачу")
     name_sheet = "001 ШАБЛОНЫ (новые продукты Рубис)"
+    if work == "delinmain":
+        name_sheet = "000 НОВЫЕ ПРОДУКТЫ РУБИС"
     folder_id = wr.id_folders_on_name([name_sheet])[name_sheet]
     print(folder_id)
     api_str = f"folders/{folder_id}/tasks"
     resp = wr.get_tasks(api_str, title="1CКОД РАБОЧЕЕ НАЗВАНИЕ")
-    root_task_id = resp[0]["id"]
+    if work == "all":
+        root_task_id = resp[0]["id"]
+    else:
+        root_task_id = ""
     print(root_task_id)
 
-    if work == 'all' or work == 'del':
+    if work == 'all' or work == 'del' or work == 'delinmain':
         print("Отчистим результаты предудущих экспериментов")
         clear_experiment(root_task_id, folder_id, wr)
 
@@ -167,12 +172,17 @@ def create_template(work, sheet_and_range):
         #  создаем связи между этапами и задачами
         print("Создадим связи между задачами и вехами")
         for stage in stage_and_task.values():
+            print(stage["id"])
             id_predecessor = stage["predecessor_stage"]
             if id_predecessor:
                 resp = wr.create_dependency(stage["id"],
                                             predecessorId=id_predecessor,
                                             relationType="FinishToFinish")
+            n = 0
+            len_sb = len(stage["subtask"])
             for number_task, task in stage["subtask"].items():
+                n += 1
+                progress(n / len_sb)
                 dependency_task = task["dependency_task"].split(";")
                 id_task = task["id"]
                 for pred_task in dependency_task:
@@ -187,13 +197,6 @@ def create_template(work, sheet_and_range):
                                                 predecessorId=pred_id,
                                                 relationType="FinishToStart")
     # передвинем даты у всех вех на последнюю задачу у вехи
-
-    # my_date = end_task_date(wr, my_taskid)
-    # if my_date > max_date:
-    #    max_date = my_date
-    # dt = wr.dates_arr(type_="Milestone", due=max_date.isoformat())
-    # resp = wr.update_task(predecessor_stage, dates=dt)
-    # resp = wr.update_task(root_task_id[0], dates=dt)
     if work == 'all' or work == 'date':
         print("Перенесем вехи на последнюю дату выполнения задач")
         wr.update_milestone_date(folder_id, root_task_id)
@@ -241,7 +244,9 @@ def set_conacts_on_table():
 
 if __name__ == '__main__':
     # work = "all"
-    # sheet_and_range = "Задачи этапов!A20:I92"
+    # work = "delinmain"
+    # sheet_and_range = "Задачи этапов!A20:I89"
     # create_template(work, sheet_and_range)
     # установка контактов в таблицу
-    set_conacts_on_table()
+    # set_conacts_on_table()
+    # print("Убери комментарий с нужной функции")

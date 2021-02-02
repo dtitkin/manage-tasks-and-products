@@ -143,13 +143,14 @@ class Wrike():
         '''
         task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
-        resp= self.rs_get(task_area, **task_params)
+        resp = self.rs_get(task_area, **task_params)
         return resp
 
     def create_task(self, folderid, title, description=None, status="Active",
                     importance="Normal", dates=None, shareds=None,
                     parents=None, responsibles=None, priorityAfter=None,
-                    superTasks=None, customFields=None, fields=None):
+                    superTasks=None, customFields=None, fields=None,
+                    follow="False", followers=None):
         '''Создать задачу
 
         https://developers.wrike.com/api/v4/tasks/
@@ -227,7 +228,8 @@ class Wrike():
         list_template = ["Норматив часы", "Номер этапа", "Номер задачи",
                          "Стратегическая группа", "Руководитель проекта",
                          "Клиент", "Бренд", "Код-1С", "Название рабочее",
-                         "Группа", "Линейка"]
+                         "Группа", "Линейка", "Проект", "Технолог"]
+
         return_dict = {}
         for field in resp:
             if field["title"] in list_template:

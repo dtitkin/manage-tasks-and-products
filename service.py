@@ -101,7 +101,7 @@ def create_template(work, sheet_and_range):
                 number_stage = row[0]
                 name_stage = number_stage + ": " + row[1]
                 name_stage += " [код рабочее название]"
-                if len(row) == 9:
+                if len(row) == 9: # чек лист не во всех строках
                     descr = wr.deskr_from_str(row[8])
                 else:
                     descr = ""

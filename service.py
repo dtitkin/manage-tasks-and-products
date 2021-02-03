@@ -69,8 +69,6 @@ def create_template(work, sheet_and_range):
 
     print("Получить папку, корневую задачу")
     name_sheet = "001 ШАБЛОНЫ (новые продукты Рубис)"
-    if work == "delinmain":
-        name_sheet = "000 НОВЫЕ ПРОДУКТЫ РУБИС"
     folder_id = wr.id_folders_on_name([name_sheet])[name_sheet]
     print(folder_id)
     api_str = f"folders/{folder_id}/tasks"
@@ -81,7 +79,7 @@ def create_template(work, sheet_and_range):
         root_task_id = ""
     print(root_task_id)
 
-    if work == 'all' or work == 'del' or work == 'delinmain':
+    if work == 'all' or work == 'del':
         print("Отчистим результаты предудущих экспериментов")
         clear_experiment(root_task_id, folder_id, wr)
 
@@ -242,11 +240,32 @@ def set_conacts_on_table():
     print("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
+def del_in_main():
+    ''' удалить все задачи из основной папки
+    '''
+    t_start = time.time()
+
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+
+    print("Получить папку")
+    name_sheet = "000 НОВЫЕ ПРОДУКТЫ"
+    folder_id = wr.id_folders_on_name([name_sheet])[name_sheet]
+    print(folder_id)
+    root_task_id = ""
+
+    print("Отчистим результаты предудущих экспериментов")
+    clear_experiment(root_task_id, folder_id, wr)
+    t_finish = time.time()
+    print("Выполненно за:", int(t_finish - t_start), " секунд")
+
+
 if __name__ == '__main__':
     # work = "all"
-    # work = "delinmain"
     # sheet_and_range = "Задачи этапов!A20:I89"
     # create_template(work, sheet_and_range)
     # установка контактов в таблицу
     # set_conacts_on_table()
-    # print("Убери комментарий с нужной функции")
+    del_in_main()
+
+    print("Убери комментарий с нужной функции")

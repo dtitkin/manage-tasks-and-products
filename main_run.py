@@ -77,21 +77,15 @@ def chek_old_session(ss, wr):
     pass
 
 
-def create_milestone(wr, row_id, row_project, folder_id, root_task_id="",
-                     after_task_id="", root=False):
+def create_product(wr, row_id, row_project, folder_id):
     # создаем этап или веху с продуктом или веху внутри этапа
-    number_stage = ""
-    descr = ""
+
     task_date = date.today()
-    st = ""  # [root_task_id]
-    if root:
-        name_stage = row_id[10] + " " + row_id[11]
-        name_stage = name_stage.upper()
-    else:
-        name_stage = " номер этапа наазвание этапа название товара"
-        name_stage = number_stage + ": " + row_id[55]
+    name_stage = row_id[10] + " " + row_id[11]
+    name_stage = name_stage.upper()
+
     dt = wr.dates_arr(type_="Milestone", due=task_date.isoformat())
-    cfd = {"Номер этапа": number_stage,
+    cfd = {"Номер этапа": "",
            "Номер задачи": "",
            "Норматив часы": 0,
            "Стратегическая группа": row_id[2],
@@ -105,9 +99,7 @@ def create_milestone(wr, row_id, row_project, folder_id, root_task_id="",
            "Клиент": row_id[27],
            "Бренд": row_id[28]}
     cf = wr.custom_field_arr(cfd)
-    resp = wr.create_task(folder_id, name_stage, description=descr,
-                          dates=dt, priorityAfter=after_task_id,
-                          superTasks=st, customFields=cf)
+    resp = wr.create_task(folder_id, name_stage, dates=dt, customFields=cf)
     return resp[0]["id"], cfd  # id созданной задачи, заполненные поля
 
 
@@ -119,8 +111,7 @@ def new_product(ss, wr, row_id, row_project, num_row, folder_id):
     # обозначим в гугл таблице начало работы
     log_ss(ss, "N:", f"F{num_row}")
     # создадим задачу с продуктом
-    id_and_cfd = create_milestone(wr, row_id, row_project,
-                                  folder_id, "", "", True)
+    id_and_cfd = create_product(wr, row_id, row_project, folder_id)
     # сохраним в таблице ID
     value = [[id_and_cfd[0]]]
     my_range = f"G{num_row}:G{num_row}"
@@ -133,15 +124,69 @@ def new_product(ss, wr, row_id, row_project, num_row, folder_id):
     return id_and_cfd
 
 
-def new_sub_task_rekurs(ss, wr, id_task, cfd, template_id):
-    '''Создаем новые подзадачи и новые вложенные вехи
-
-       рекурсивно по всему списку задач из шаблона
+def find_cf(wr, resp_cf, name_cf):
+    ''' Ищем в списке полей поле с нужным id
     '''
-    resp = wr.get_tasks(f"tasks/{template_id}")
-    sub_task_ids = resp[0]["subTaskIds"]
-    if len(sub_task_ids) == 0:
-        return None
+    return_value = ""
+    id_field = wr.customfields[name_cf]
+    for cf in resp_cf:
+        if cf["id"] == id_field:
+            return_value = cf["value"]
+            break
+    return return_value
+
+
+def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks, folder_id):
+    '''Создаем новые подзадачи и новые вложенные вехи
+       рекурсивно по всему списку задач из шаблона
+
+    '''
+    templ_dict = {}
+    if len(templ_sub_tasks) == 0:
+        return templ_dict
+    task_date = date.today()
+    for templ_task in templ_sub_tasks:
+        # из родительской задачи нужны: Код-1С, Название рабочее.
+        # из шаблона нужно: Название задачи, описание,подзадачи, связи,
+        #                   Номер эатпа, Номер задачи, норматив часы
+        #                   тип задачи (задача/веха), длительнось.
+        resp = wr.get_tasks(f"tasks/{templ_task}")[0]
+        kod = cfd["Код-1С"]
+        name = cfd["Название рабочее"]
+        tmp_n = resp["title"]
+        name_task = tmp_n.replace("[код рабочее название]", f"[{kod} {name}]")
+        descr = resp["description"]
+        sub_tasks = resp["subTaskIds"]
+        dependecy_ids = resp["dependencyIds"]
+        resp_cf = resp["customFields"]
+        cfd["Номер этапа"] = find_cf(wr, resp_cf, "Номер этапа")
+        cfd["Номер задачи"] = find_cf(wr, resp_cf, "Номер задачи")
+        cfd["Норматив часы"] = find_cf(wr, resp_cf, "Норматив часы")
+        type_task = resp["dates"]["type"]
+        duration = 0
+        st = [parent_id]
+        cf = wr.custom_field_arr(cfd)
+        if type_task == "Planned":
+            duration = resp["dates"]["duration"]
+            dt = wr.dates_arr(type_=type_task, start=task_date.isoformat(),
+                              duration=duration)
+        elif type_task == "Milestone":
+            dt = wr.dates_arr(type_=type_task, due=task_date.isoformat())
+
+        num_task = cfd["Номер задачи"]
+        log(f"       {num_task} {name_task}")
+        resp = wr.create_task(folder_id, name_task, description=descr,
+                              dates=dt, superTasks=st, customFields=cf)
+
+        id_task = resp[0]["id"]
+        templ_dict[templ_task] = {}
+        templ_dict[templ_task]["new_id"] = id_task
+        templ_dict[templ_task]["old_dependecy"] = dependecy_ids
+
+        resp_dict = new_sub_task_rekurs(ss, wr, id_task, cfd,
+                                        sub_tasks, folder_id)
+        templ_dict.update(resp_dict)
+    return templ_dict
 
 
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
@@ -167,8 +212,16 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # создадим вложенные вехи
             templ_id = {}  # словаррь соответсвия id из шаблона с id созданных
             templ_id[template_id] = id_and_cfd[0]
-            new_sub_task_rekurs(ss, wr, id_and_cfd[0],
-                                id_and_cfd[1], template_id)
+            log_ss(ss, "ST:", f"F{num_row}")
+            resp = wr.get_tasks(f"tasks/{template_id}")[0]
+            templ_subtask = resp["subTaskIds"]
+            log("   Создаем задачи")
+            resp_dict = new_sub_task_rekurs(ss, wr, id_and_cfd[0],
+                                            id_and_cfd[1], templ_subtask,
+                                            folder_id)
+            templ_id.update(resp_dict)
+            pprint(templ_id)
+            log_ss(ss, "STF:", f"F{num_row}")
 
 
 def main():

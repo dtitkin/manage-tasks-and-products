@@ -22,6 +22,14 @@ def now_str():
     return str_now
 
 
+def progress(percent=0, width=30):
+    left = int(width * percent) // 1
+    right = width - left
+    print('\r[', '#' * left, ' ' * right, ']',
+          f' {percent * 100:.0f}%',
+          sep='', end='', flush=True)
+
+
 def log(msg, prn_time=False):
     str_now = now_str()
     if prn_time:
@@ -77,7 +85,7 @@ def chek_old_session(ss, wr):
     pass
 
 
-def create_product(wr, row_id, row_project, folder_id):
+def create_product(wr, row_id, folder_id, users_from_name):
     # создаем этап или веху с продуктом или веху внутри этапа
 
     task_date = date.today()
@@ -98,12 +106,19 @@ def create_product(wr, row_id, row_project, folder_id):
            "Линейка": row_id[12],
            "Клиент": row_id[27],
            "Бренд": row_id[28]}
+
+    manager = users_from_name.get(row_id[4], "")
+    r_bles = []
+    if manager:
+        id_manager = manager["id"]
+        r_bles = [id_manager]
     cf = wr.custom_field_arr(cfd)
-    resp = wr.create_task(folder_id, name_stage, dates=dt, customFields=cf)
+    resp = wr.create_task(folder_id, name_stage, dates=dt,
+                          responsibles=r_bles, customFields=cf)
     return resp[0]["id"], cfd  # id созданной задачи, заполненные поля
 
 
-def new_product(ss, wr, row_id, row_project, num_row, folder_id):
+def new_product(ss, wr, row_id, num_row, folder_id, users_from_name):
     ''' По признаку G в строке продукта грузим проект во Wrike
         Если проект уже есть то стираем его и создаем новый с новыми датами
 
@@ -111,7 +126,7 @@ def new_product(ss, wr, row_id, row_project, num_row, folder_id):
     # обозначим в гугл таблице начало работы
     log_ss(ss, "N:", f"F{num_row}")
     # создадим задачу с продуктом
-    id_and_cfd = create_product(wr, row_id, row_project, folder_id)
+    id_and_cfd = create_product(wr, row_id, folder_id, users_from_name)
     # сохраним в таблице ID
     value = [[id_and_cfd[0]]]
     my_range = f"G{num_row}:G{num_row}"
@@ -136,7 +151,76 @@ def find_cf(wr, resp_cf, name_cf):
     return return_value
 
 
-def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks, folder_id):
+def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
+    '''Подбирает из списка пользоваатателей одного или нескольких
+       по соответсвию рабочей группы и заменителей []
+    '''
+    return_list = []
+    manager_name = own_teh[0]
+    manager_id = users_from_name.get(manager_name, "")
+    if not manager_id:
+        log(f"Руководитель проекта {manager_name} не найден в Ресурсах")
+    else:
+        manager_id = manager_id["id"]
+    teh_name = own_teh[1]
+    teh_id = users_from_name.get(teh_name, "")
+    if not teh_id:
+        log(f"Технолог {teh_name} не найден в Ресурсах")
+    else:
+        teh_id = teh_id["id"]
+
+    all_in_group = True
+    group = ""
+    group_in_list = ""
+    for num, user in enumerate(task_user, 1):
+        param_user = users_from_id.get(user)
+        if param_user is None:
+            log(f"Пользователь {user} не найден в Ресурсах")
+            continue
+        group = param_user["group"]
+        slice_pos = group.find("[")
+        if slice_pos > -1:
+            group = group[0:slice_pos]
+        if not group:
+            all_in_group = False
+            break
+        if num == 1:
+            group_in_list = group
+        if group_in_list != group:
+            all_in_group = False
+            break
+
+    if len(task_user) == 1:
+        all_in_group = False
+
+    if all_in_group:
+        if group == "РП":  # оставим одного рп и его заменителя
+            for user in task_user:
+                if user == manager_id:
+                    return_list.append(user)
+                else:
+                    param_user = users_from_id.get(user)
+                    if param_user:
+                        gr = param_user["group"]
+                        start_s = gr.find("[")
+                        finish_s = gr.find("]")
+                        if start_s > -1:
+                            helper_name = gr[start_s + 1:finish_s]
+                            helper_id = users_from_name[helper_name]["id"]
+                            if helper_id == manager_id:
+                                return_list.append(user)
+        elif group == "Технолог":
+            if teh_id:
+                return_list.append(teh_id)
+    else:
+        return_list = task_user.copy()
+
+    return return_list
+
+
+def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks,
+                        folder_id, users_from_id, users_from_name, own_teh,
+                        level=0):
     '''Создаем новые подзадачи и новые вложенные вехи
        рекурсивно по всему списку задач из шаблона
 
@@ -145,11 +229,17 @@ def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks, folder_id):
     if len(templ_sub_tasks) == 0:
         return templ_dict
     task_date = date.today()
+    n = 0
+    len_sub = len(templ_sub_tasks)
     for templ_task in templ_sub_tasks:
+        if level == 0:
+            n += 1
+            percent = n / len_sub
+            progress(percent)
         # из родительской задачи нужны: Код-1С, Название рабочее.
-        # из шаблона нужно: Название задачи, описание,подзадачи, связи,
-        #                   Номер эатпа, Номер задачи, норматив часы
-        #                   тип задачи (задача/веха), длительнось.
+        # из шаблона : Название задачи, описание,подзадачи, связи,
+        #              Номер этапа, Номер задачи, норматив часы
+        #              тип задачи (задача/веха), длительнось, пользоваатели.
         resp = wr.get_tasks(f"tasks/{templ_task}")[0]
         kod = cfd["Код-1С"]
         name = cfd["Название рабочее"]
@@ -173,10 +263,14 @@ def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks, folder_id):
         elif type_task == "Milestone":
             dt = wr.dates_arr(type_=type_task, due=task_date.isoformat())
 
-        num_task = cfd["Номер задачи"]
-        log(f"       {num_task} {name_task}")
+        r_bles = find_r_bles(resp["responsibleIds"], users_from_id,
+                             users_from_name, own_teh)
+
+        # num_task = cfd["Номер задачи"]
+        # log(f"       {num_task} {name_task}")
         resp = wr.create_task(folder_id, name_task, description=descr,
-                              dates=dt, superTasks=st, customFields=cf)
+                              dates=dt, responsibles=r_bles, superTasks=st,
+                              customFields=cf)
 
         id_task = resp[0]["id"]
         templ_dict[templ_task] = {}
@@ -184,14 +278,15 @@ def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks, folder_id):
         templ_dict[templ_task]["old_dependecy"] = dependecy_ids
 
         resp_dict = new_sub_task_rekurs(ss, wr, id_task, cfd,
-                                        sub_tasks, folder_id)
+                                        sub_tasks, folder_id, users_from_id,
+                                        users_from_name, own_teh, 1)
         templ_dict.update(resp_dict)
     return templ_dict
 
 
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
-    chek_old_session(ss, wr)
+
     ss.sheetTitle = "Рабочая таблица №1"
     table_id = ss.values_get("F:AH")
     table_project = ss.values_get("BV:CE")
@@ -207,10 +302,10 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
         if row_project[0] == "G":
             m = f"Создаем продукт # {num_row} {row_id[10]} {row_id[11]}"
             log(m, True)
-            id_and_cfd = new_product(ss, wr, row_id, row_project,
-                                     num_row, folder_id)
+            id_and_cfd = new_product(ss, wr, row_id, num_row, folder_id,
+                                     users_from_name)
             # создадим вложенные вехи
-            templ_id = {}  # словаррь соответсвия id из шаблона с id созданных
+            templ_id = {}  # словарь соответсвия id из шаблона с id созданных
             templ_id[template_id] = id_and_cfd[0]
             log_ss(ss, "ST:", f"F{num_row}")
             resp = wr.get_tasks(f"tasks/{template_id}")[0]
@@ -218,7 +313,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             log("   Создаем задачи")
             resp_dict = new_sub_task_rekurs(ss, wr, id_and_cfd[0],
                                             id_and_cfd[1], templ_subtask,
-                                            folder_id)
+                                            folder_id, users_from_id,
+                                            users_from_name, row_id[4:6])
             templ_id.update(resp_dict)
             pprint(templ_id)
             log_ss(ss, "STF:", f"F{num_row}")
@@ -250,6 +346,9 @@ def main():
 
     log("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)
+
+    log("Проверка и отчитска результатов предыдущих сессий", True)
+    chek_old_session(ss, wr)
 
     log("Выгрузка проектов из Гугл во Wrike", True)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,

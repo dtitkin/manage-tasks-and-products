@@ -30,13 +30,19 @@ def progress(percent=0, width=30):
           sep='', end='', flush=True)
 
 
-def log(msg, prn_time=False):
+def log(msg, prn_time=False, one_str=True):
     str_now = now_str()
     if prn_time:
         print(str_now, end=" ")
-        pprint(msg)
+        if not one_str:
+            pprint(msg)
+        else:
+            print('\r', msg, sep='', end='', flush=True)
     else:
-        pprint(msg)
+        if not one_str:
+            pprint(msg)
+        else:
+            print('\r', msg, sep='', end='', flush=True)
 
 
 def log_ss(ss, msg, cells_range):
@@ -128,10 +134,7 @@ def new_product(ss, wr, row_id, num_row, folder_id, users_from_name):
     # создадим задачу с продуктом
     id_and_cfd = create_product(wr, row_id, folder_id, users_from_name)
     # сохраним в таблице ID
-    value = [[id_and_cfd[0]]]
-    my_range = f"G{num_row}:G{num_row}"
-    ss.prepare_setvalues(my_range, value)
-    ss.run_prepared()
+    log_ss(ss, id_and_cfd[0], f"G{num_row}")
 
     # обзначим в гугл таблице завершение работы
     log_ss(ss, "NF:" + now_str(), f"F{num_row}")
@@ -218,6 +221,24 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
     return return_list
 
 
+def delete_products_recurs(wr, id_task, num=0):
+    ''' удаляем все задачи и вехи по продукту
+
+    '''
+    resp = wr.get_tasks(f"tasks/{id_task}")[0]
+    if len(resp) == 0:
+        return None
+    sub_task = resp["subTaskIds"]
+    resp_cf = resp["customFields"]
+    num_t = find_cf(wr, resp_cf, "Номер задачи")
+    log(str(num_t) + " удаляем", False, True)
+    for task in sub_task:
+        delete_products_recurs(wr, task, num + 1)
+    if num == 0:
+        log("")
+    wr.rs_del(f"tasks/{id_task}")
+
+
 def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks,
                         folder_id, users_from_id, users_from_name, own_teh,
                         level=0):
@@ -296,7 +317,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
         if len(row_project) == 0:
             continue
         if len(table_id) < num_row:
-            row_id = ["", ""]
+            row_id = ["" for x in range(0, 29)]
         else:
             row_id = table_id[num_row - 1]
         if row_project[0] == "G":
@@ -316,8 +337,19 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                             folder_id, users_from_id,
                                             users_from_name, row_id[4:6])
             templ_id.update(resp_dict)
-            pprint(templ_id)
+            log("")
             log_ss(ss, "STF:", f"F{num_row}")
+        elif row_project[0] == "P":
+            # удяляем проект из Wrike если он там есть
+            id_product = row_id[1]
+            if id_product:
+                m = f"Удаляем продукт # {num_row} {row_id[10]} {row_id[11]}"
+                log(m, True)
+                log_ss(ss, "D:", f"F{num_row}")
+                delete_products_recurs(wr, id_product)
+                # сохраним в таблице ID
+                log_ss(ss, "", f"G{num_row}")
+                log_ss(ss, "DF:", f"F{num_row}")
 
 
 def main():
@@ -355,7 +387,7 @@ def main():
                               template_id, folder_id)
 
     t_finish = time.time()
-    print("Выполненно за:", int(t_finish - t_start), " секунд")
+    log("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
 if __name__ == '__main__':

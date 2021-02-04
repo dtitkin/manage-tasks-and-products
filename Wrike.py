@@ -309,6 +309,10 @@ class Wrike():
     def id_folders_on_name(self, foldersname_list):
         ' по имени папки или проекта возвразает id проекта'
         resp = self.rs_get("folders")
+        if isinstance(foldersname_list, str):
+            ls = []
+            ls.append(foldersname_list)
+            foldersname_list = ls
         folders_dict = {name: None for name in foldersname_list}
         for folder in resp:
             if folder["title"] in foldersname_list:

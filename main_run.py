@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, date
 import time
 import os
 
+from numpy import busday_offset, busday_count, datetime_as_string
 
 import Wrike
 import Spreadsheet
@@ -13,6 +14,7 @@ CREDENTIALS_FILE = "creds.json"
 TABLE_ID = os.getenv("gogletableid")
 TOKEN = os.getenv("wriketoken")
 ONE_DAY = timedelta(days=1)
+HOLYDAY = []
 
 
 def now_str():
@@ -30,19 +32,19 @@ def progress(percent=0, width=30):
           sep='', end='', flush=True)
 
 
-def log(msg, prn_time=False, one_str=True):
+def log(msg, prn_time=False, one_str=False):
     str_now = now_str()
     if prn_time:
         print(str_now, end=" ")
-        if not one_str:
-            pprint(msg)
-        else:
+        if one_str:
             print('\r', msg, sep='', end='', flush=True)
+        else:
+            pprint(msg)
     else:
-        if not one_str:
-            pprint(msg)
-        else:
+        if one_str:
             print('\r', msg, sep='', end='', flush=True)
+        else:
+            pprint(msg)
 
 
 def log_ss(ss, msg, cells_range):
@@ -50,6 +52,13 @@ def log_ss(ss, msg, cells_range):
     my_range = f"{cells_range}:{cells_range}"
     ss.prepare_setvalues(my_range, value)
     ss.run_prepared()
+
+
+def make_date(usr_date):
+    if not usr_date:
+        return date.today()
+    lst_date = usr_date[0:10].split(".")
+    return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
 
 
 def get_user(ss, wr):
@@ -172,8 +181,12 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
     else:
         teh_id = teh_id["id"]
 
-    all_in_group = True
-    group = ""
+    group_user = {}
+    group_user["RP"] = []
+    group_user["RP_helper"] = []
+    group_user["Tech"] = []
+    group_user["Other"] = []
+
     group_in_list = ""
     for num, user in enumerate(task_user, 1):
         param_user = users_from_id.get(user)
@@ -185,38 +198,26 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
         if slice_pos > -1:
             group = group[0:slice_pos]
         if not group:
-            all_in_group = False
-            break
-        if num == 1:
-            group_in_list = group
-        if group_in_list != group:
-            all_in_group = False
-            break
-
-    if len(task_user) == 1:
-        all_in_group = False
-
-    if all_in_group:
-        if group == "РП":  # оставим одного рп и его заменителя
-            for user in task_user:
-                if user == manager_id:
-                    return_list.append(user)
-                else:
-                    param_user = users_from_id.get(user)
-                    if param_user:
-                        gr = param_user["group"]
-                        start_s = gr.find("[")
-                        finish_s = gr.find("]")
-                        if start_s > -1:
-                            helper_name = gr[start_s + 1:finish_s]
-                            helper_id = users_from_name[helper_name]["id"]
-                            if helper_id == manager_id:
-                                return_list.append(user)
+            group_user["Other"].append(user)
+        elif group == "РП" and slice_pos > -1:
+            group_user["RP_helper"].append(user)
+        elif group == "РП" and slice_pos == -1:
+            group_user["RP"].append(user)
         elif group == "Технолог":
-            if teh_id:
-                return_list.append(teh_id)
-    else:
-        return_list = task_user.copy()
+            group_user["Tech"].append(user)
+
+    if len(group_user["Tech"]) > 0:
+        if teh_id in group_user["Tech"]:
+            return_list.append(teh_id)
+        else:
+            return_list.extend(group_user["Tech"])
+    if len(group_user["RP"]) > 0:
+        if manager_id in group_user["RP"]:
+            return_list.append(manager_id)
+        else:
+            return_list.extend(group_user["RP"])
+    return_list.extend(group_user["RP_helper"])
+    return_list.extend(group_user["Other"])
 
     return return_list
 
@@ -305,6 +306,56 @@ def new_sub_task_rekurs(ss, wr, parent_id, cfd, templ_sub_tasks,
     return templ_dict
 
 
+def get_len_stage(num_stage, num_template="#1"):
+    template = {}
+    template["#1"] = {}
+    template["#1"]["001"] = 4
+    template["#1"]["002"] = 6
+    template["#1"]["003"] = 5
+    template["#1"]["004"] = 1
+    template["#1"]["005"] = 8
+    template["#1"]["006"] = 92
+    template["#1"]["007"] = 7
+    template["#1"]["008"] = 2
+
+    my_tmpl = template[num_template]
+    return my_tmpl.get(num_stage)
+
+
+def set_date_on_task(wr, num_task, end_stage, templ_id, num_stage="001"):
+    ''' устанавливаем дату у задачи с определенным номером
+        дату у задачи вычисляем в заависимости от длительности этапа
+        длительность этапа берем из функции get_len_stage
+    '''
+    date_stage = make_date(end_stage)
+    len_stage = get_len_stage(num_stage)
+    date_for_task = busday_offset(date_stage, -1 * len_stage,
+                                  weekmask="1111100", holidays=HOLYDAY)
+    date_for_task = datetime_as_string(date_for_task)
+    # найдем задачу у которой нужно поментья день
+    txt_req = "tasks/"
+    for vl in templ_id.values():
+        txt_req += vl["new_id"] + ","
+    txt_req = txt_req[0:-1]
+    resp = wr.get_tasks(txt_req)
+    id_task = ""
+    duration = 0
+    for task in resp:
+        resp_cf = task["customFields"]
+        num_t = find_cf(wr, resp_cf, "Номер задачи")
+        if num_task == num_t:
+            id_task = task["id"]
+            duration = task["dates"]["duration"]
+            break
+
+    if id_task and duration:
+        log(f"     меняем дату у задачи {id_task} дилтельность {duration}")
+        dt = wr.dates_arr(type_="Planned", start=date_for_task,
+                          duration=duration)
+        resp = wr.update_task(id_task, dates=dt)
+    return date_for_task
+
+
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
 
@@ -322,12 +373,15 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             row_id = table_id[num_row - 1]
         if row_project[0] == "G":
             m = f"Создаем продукт # {num_row} {row_id[10]} {row_id[11]}"
-            log(m, True)
+            log(m, True, False)
             id_and_cfd = new_product(ss, wr, row_id, num_row, folder_id,
                                      users_from_name)
             # создадим вложенные вехи
             templ_id = {}  # словарь соответсвия id из шаблона с id созданных
-            templ_id[template_id] = id_and_cfd[0]
+            templ_id[template_id] = {}
+            templ_id[template_id]["new_id"] = id_and_cfd[0]
+            templ_id[template_id]["old_dependecy"] = ""
+
             log_ss(ss, "ST:", f"F{num_row}")
             resp = wr.get_tasks(f"tasks/{template_id}")[0]
             templ_subtask = resp["subTaskIds"]
@@ -339,12 +393,22 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             templ_id.update(resp_dict)
             log("")
             log_ss(ss, "STF:", f"F{num_row}")
+            # определяем дату первой задачи у первого этапа
+            log_ss(ss, "D:", f"F{num_row}")
+            set_date_on_task(wr, "1", row_project[2], templ_id)
+            # устанавливаем дату первой задачи у первого этапа
+            # устанавливаем связи
+            # переносим вехи в соответсвии с датами во Wrike
+            # отмечаем выполненно
+            # проверяем дату первой задачи в этапе после выполненных этапов
+            log_ss(ss, "DF:", f"F{num_row}")
+
         elif row_project[0] == "P":
             # удяляем проект из Wrike если он там есть
             id_product = row_id[1]
             if id_product:
                 m = f"Удаляем продукт # {num_row} {row_id[10]} {row_id[11]}"
-                log(m, True)
+                log(m, True, False)
                 log_ss(ss, "D:", f"F{num_row}")
                 delete_products_recurs(wr, id_product)
                 # сохраним в таблице ID
@@ -352,14 +416,31 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                 log_ss(ss, "DF:", f"F{num_row}")
 
 
+def read_holiday(ss):
+    holidays_str = ss.values_get("Рабочий календарь!A:A")
+    global HOLYDAY
+    do_it = False
+    for hd in holidays_str:
+        if (len(hd) == 0):
+            continue
+        if hd[0] == "Шаблон{":
+            do_it = True
+            continue
+        elif hd[0] == "Шаблон}":
+            break
+        if do_it:
+            d_str = hd[0].split(".")
+            HOLYDAY.append(date(int(d_str[2]), int(d_str[1]), int(d_str[0])))
+
+
 def main():
     '''Создает шаблон во Wrike на основе Гугл таблицы
     '''
     t_start = time.time()
-    log("Приосоединяемся к Гугл", True)
+    log("Приосоединяемся к Гугл", True, False)
     ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
     ss.set_spreadsheet_byid(TABLE_ID)
-
+    read_holiday(ss)
     log("Приосоединяемся к Wrike")
     wr = Wrike.Wrike(TOKEN)
 
@@ -379,10 +460,10 @@ def main():
     log("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)
 
-    log("Проверка и отчитска результатов предыдущих сессий", True)
+    log("Проверка и отчитска результатов предыдущих сессий", True, False)
     chek_old_session(ss, wr)
 
-    log("Выгрузка проектов из Гугл во Wrike", True)
+    log("Выгрузка проектов из Гугл во Wrike", True, False)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id)
 

@@ -1,9 +1,10 @@
 import os
 from pprint import pprint
 from datetime import date, timedelta
-from collections import OrderedDict
+
 import time
 import builtins
+from numpy import busday_count
 
 import Wrike
 import Spreadsheet
@@ -99,7 +100,7 @@ def create_template(work, sheet_and_range):
                 number_stage = row[0]
                 name_stage = number_stage + ": " + row[1]
                 name_stage += " [код рабочее название]"
-                if len(row) == 9: # чек лист не во всех строках
+                if len(row) == 9:  # чек лист не во всех строках
                     descr = wr.deskr_from_str(row[8])
                 else:
                     descr = ""
@@ -260,12 +261,109 @@ def del_in_main():
     print("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
+def len_mile():
+    def find_cf(wr, resp_cf, name_cf):
+        ''' Ищем в списке полей поле с нужным id
+        '''
+        return_value = ""
+        id_field = wr.customfields[name_cf]
+        for cf in resp_cf:
+            if cf["id"] == id_field:
+                return_value = cf["value"]
+                break
+        return return_value
+
+    def find_stage(resp, find_num=""):
+        sub = resp[0]["subTaskIds"]
+        txt_req = "tasks/"
+        for id_t in sub:
+            txt_req = txt_req + id_t + ","
+        txt_req = txt_req[0:-1]
+        resp = wr.get_tasks(txt_req)
+        returt_d = {}
+        id_001 = ""
+        for task in resp:
+            resp_cf = task["customFields"]
+            num_t = find_cf(wr, resp_cf, "Номер задачи")
+            if find_num == "":
+                if num_t == "001":
+                    id_001 = task["id"]
+                due = task["dates"]["due"]
+                returt_d[num_t] = due
+            elif find_num == num_t:
+                start = task["dates"]["start"]
+                returt_d[num_t] = start
+        return returt_d, id_001
+
+    print("Приосоединяемся к Гугл")
+    ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
+    ss.set_spreadsheet_byid(TABLE_ID)
+    holidays_str = ss.values_get("Рабочий календарь!A:A")
+    holidays = []
+    do_it = False
+    for hd in holidays_str:
+        if (len(hd) == 0):
+            continue
+        if hd[0] == "Шаблон{":
+            do_it = True
+            continue
+        elif hd[0] == "Шаблон}":
+            break
+        if do_it:
+            d_str = hd[0].split(".")
+            holidays.append(date(int(d_str[2]), int(d_str[1]), int(d_str[0])))
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+    print("Получить папку, корневую задачу")
+    name_sheet = "001 ШАБЛОНЫ (новые продукты Рубис)"
+    folder_id = wr.id_folders_on_name([name_sheet])[name_sheet]
+    print(folder_id)
+    api_str = f"folders/{folder_id}/tasks"
+    resp = wr.get_tasks(api_str, title="1CКОД РАБОЧЕЕ НАЗВАНИЕ")
+    root_task_id = resp[0]["id"]
+    print(root_task_id)
+    resp = wr.rs_get(f"tasks/{root_task_id}")
+    d_task, id_001 = find_stage(resp)
+    resp = wr.get_tasks(f"tasks/{id_001}")
+    d_t1, id_001 = find_stage(resp, "1")
+    d_task.update(d_t1)
+    # переведем в даты
+    for key, value in d_task.items():
+        lst = value[0:10].split("-")
+        my_dt = date(int(lst[0]), int(lst[1]), int(lst[2]))
+        d_task[key] = my_dt
+    sort_list = list(d_task.items())
+    sort_list.sort(key=lambda i: i[1])
+    start_date = sort_list[0][1] - ONE_DAY
+    for nxt_stage in sort_list:
+        if nxt_stage[0] == "0052" or nxt_stage[0] == "0051":
+            continue
+        end_date = nxt_stage[1]
+        len_stage = busday_count(start_date, end_date, weekmask="1111100",
+                                 holidays=holidays)
+        print("Этап", nxt_stage[0], "старт:", start_date, "финиш:",
+              end_date, "длительность:", len_stage)
+        start_date = end_date
+
+
+
+
+def rout_on_sys_argv():
+    import sys
+    d_globals = globals()
+    lst_func = sys.argv
+    my_f = lst_func[1]
+    lst_f = ["len_mile", "del_in_main"]
+    if my_f in lst_f:
+        d_globals[my_f]()
+
+
 if __name__ == '__main__':
     # work = "all"
     # sheet_and_range = "Задачи этапов!A20:I89"
     # create_template(work, sheet_and_range)
     # установка контактов в таблицу
     # set_conacts_on_table()
-    del_in_main()
-
-    print("Убери комментарий с нужной функции")
+    # del_in_main()
+    rout_on_sys_argv()
+    # print("Убери комментарий с нужной функции")

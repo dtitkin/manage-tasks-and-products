@@ -171,6 +171,40 @@ class Wrike():
         resp = self.rs_put(f"tasks/{taskid}", **task_dates)
         return resp
 
+    def get_folders(self, folderarea, permalink=None, descendants="true",
+                    customField=None, updatedDate=None, project=None,
+                    deleted=None, fields=None):
+        '''Получить папку/проект
+
+           folderarea - folders
+                        folders/{folderId}/folders
+                        spaces/{spaceId}/folders
+        '''
+        task_params = self.make_params(locals(),
+                                       ["self", "folderarea", "task_params"])
+        resp = self.rs_get(folderarea, **task_params)
+        return resp
+
+    def copy_folder(self, folderid, parent, title, titlePrefix,
+                    copyDescriptions="true", copyResponsibles="true"):
+        ''' копироуем папку/проект
+        '''
+        task_dates = self.make_params(locals(),
+                                      ["self", "folderid", "task_dates"])
+        resp = self.rs_post(f"copy_folder/{folderid}", **task_dates)
+        return resp
+
+    def update_folder(self, folderid, title=None, description=None,
+                      addParents=None, removeParents=None, addShareds=None,
+                      removeShareds=None, restore=None, customColumns=None,
+                      project=None, fields=None):
+        ''' обновить папку
+        '''
+        task_dates = self.make_params(locals(),
+                                      ["self", "folderid", "task_dates"])
+        resp = self.rs_put(f"folders/{folderid}", **task_dates)
+        return resp
+
     def update_milestone_date(self, folderid, root_task_id):
         '''Обновляет дату у всех вех внутри задачи с переносом не текущую
         '''
@@ -307,7 +341,7 @@ class Wrike():
         return id_dict
 
     def id_folders_on_name(self, foldersname_list):
-        ' по имени папки или проекта возвразает id проекта'
+        ' по имени папки или проекта возвращает id проекта'
         resp = self.rs_get("folders")
         if isinstance(foldersname_list, str):
             ls = []

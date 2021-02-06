@@ -66,7 +66,7 @@ class Wrike():
             pprint(params)
         return params
 
-    def manage_return(self, resp, arr):
+    def manage_return(self, resp, arr="data"):
         ''' определяет что вернуть из response на основании arr
 
             arr="data" or "json" or key in resp Wrike
@@ -109,7 +109,7 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
-        return resp.json()["data"]
+        return self.manage_return(resp)
 
     def rs_put(self, put_str, **kwargs):
         'выполнение любого запроса put'
@@ -120,7 +120,7 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
-        return resp.json()["data"]
+        return self.manage_return(resp)
 
     def rs_del(self, del_str, **kwargs):
         'выполнение любого запроса del'
@@ -162,8 +162,10 @@ class Wrike():
 
     def update_task(self, taskid, title=None, description=None, status=None,
                     importance=None, dates=None, addParents=None,
-                    removeParents=None, priorityAfter=None, addSuperTasks=None,
-                    removeSuperTasks=None, customFields=None):
+                    removeParents=None, addResponsibles=None,
+                    removeResponsibles=None, priorityAfter=None,
+                    addSuperTasks=None, removeSuperTasks=None,
+                    customFields=None):
         '''Обновить задачу
         '''
         task_dates = self.make_params(locals(),
@@ -196,8 +198,8 @@ class Wrike():
 
     def update_folder(self, folderid, title=None, description=None,
                       addParents=None, removeParents=None, addShareds=None,
-                      removeShareds=None, restore=None, customColumns=None,
-                      project=None, fields=None):
+                      removeShareds=None, restore=None, customFields=None,
+                      customColumns=None, project=None, fields=None):
         ''' обновить папку
         '''
         task_dates = self.make_params(locals(),

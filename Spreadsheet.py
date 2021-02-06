@@ -169,11 +169,31 @@ class Spreadsheet():
         if len(cellsRange) > 0:
             getRes = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheetId,
-                range= self.sheetTitle + "!" + cellsRange,
+                range=self.sheetTitle + "!" + cellsRange,
                 majorDimension=majorDimension).execute()
             if self.debugMode:
                 pprint(getRes)
         return getRes["values"]
+
+    def sh_get(self, cellsRange):
+        sheet_and_range = cellsRange.split("!")
+        if len(sheet_and_range) == 2:
+            self.sheetTitle = sheet_and_range[0]
+            cellsRange = sheet_and_range[1]
+        if self.spreadsheetId is None:
+            raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
+        getRes = {}
+        if len(cellsRange) > 0:
+            getRes = self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheetId,
+                ranges=self.sheetTitle + "!" + cellsRange,
+                includeGridData=True).execute()
+            if self.debugMode:
+                pprint(getRes)
+        return getRes["sheets"]
+
 
 
 # Функции тестирования класса

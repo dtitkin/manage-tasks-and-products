@@ -202,8 +202,6 @@ class Spreadsheet():
                 pprint(getRes)
         return getRes["sheets"]
 
-
-
 # Функции тестирования класса
 '''CREDENTIALS_FILE = 'creds.json'
 TABLE_ID_TEST = "1ftW9wEf-zGMTtIe_YIfZZxgomRBJhkXjnLe9Q4eKFpM"

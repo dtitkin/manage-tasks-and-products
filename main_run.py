@@ -200,7 +200,7 @@ def delete_products_recurs(wr, id_task, num=0):
 
 
 def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
-                    own_teh, num_row, finish_status):
+                    own_teh, num_row, finish_status, dates_stage):
     ''' Обновление задач в проекте. Установка исполнителей, пользовательских
         полей, статуса выполненно
     '''
@@ -228,17 +228,26 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
                              users_from_name, own_teh)
         #  проверяем на статус выполненно
         num_stage = find_cf(wr, resp_cf, "num_stage")
-        if int(num_stage) in finish_status:
+        num_task = find_cf(wr, resp_cf, "num_task")
+        if num_stage in finish_status:
             status = "Completed"
         else:
             status = None
+        # у 'этапов' устанавливаем дату из таблицы
+        type_task = task["dates"]["type"]
+        dt = None
+        if type_task == "Milestone" and num_task[0:2] == "00":
+            if dates_stage.get(num_stage):
+                dt = wr.dates_arr(type_="Milestone",
+                                  due=dates_stage[num_stage].isoformat())
         #  обновляем задачу
         resp_upd = wr.update_task(task["id"], removeResponsibles=r_bles,
-                                  customFields=cf, status=status)
+                                  customFields=cf, status=status, dates=dt)
         if len(resp_upd) == 0:
             log(task["id"] + " ошибка обновления")
             break
     else:
+        print()
         #  если обработали все задачи обозначим в таблице выполнение
         log_ss(ss, "Finish update sub task:" + now_str(), f"F{num_row}")
         return True
@@ -298,21 +307,43 @@ def set_date_on_task(ss, wr, num_row, num_task, end_stage, num_stage="1"):
     return date_for_task'''
 
 
-def read_finish(ss, wr, num_row):
-    ''' устанвливаем статус выполнено
-        в зависимости от статуса в Гугл таблице
+def read_stage_info(ss, wr, num_row):
+    ''' запоминаем из таблицы значение, цвет шрифта и цвет ячейки
     '''
-    return_list = []
+    finish_list = []
+    dates_stage = {}
     lst_range = ["BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE"]
+    cells_range = f"Рабочая таблица №1!BX{num_row}:CE{num_row}"
+    lst_status = read_color_cells(ss, cells_range)[0]
     for k, cl in enumerate(lst_range, 1):
-        cells_range = f"Рабочая таблица №1!{cl}{num_row}:{cl}{num_row}"
-        lst_status = read_color_cells(ss, cells_range)
-        if len(lst_status) > 0:
-            color_stage = lst_status[0][0]
-            if str(color_stage) == str(COLOR_FINISH):
-                # запоминаем у каких этапов нужно установить Finish
-                return_list.append(k)
-    return return_list
+        color_stage = (lst_status[k - 1][0], lst_status[k - 1][1])
+        stage_value = lst_status[k - 1][2]
+        if str(color_stage) == str(COLOR_FINISH):
+            # запоминаем у каких этапов нужно установить Finish
+            finish_list.append(str(k))
+        dates_stage[str(k)] = make_date(stage_value)
+    return finish_list, dates_stage
+
+
+def set_color_W(ss, num_row, finish_status):
+    ''' устанавливает цвет - признак того что даты обновляются из Wrike
+    '''
+    ss.sheetTitle = "Рабочая таблица №1"
+    ss.sheetId = 1375512515
+
+    lst_range = ["BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE"]
+    max_finish_stage = 0
+    if len(finish_status) > 0:
+        max_finish_stage = int(max(finish_status))
+    if max_finish_stage < 8:
+        s_cl = lst_range[max_finish_stage]
+        e_cl = "CE"
+        cl = f"{s_cl}{num_row}:{e_cl}{num_row}"
+        bg_colr = {"backgroundColor": Spreadsheet.htmlColorToJSON("#cfe2f3")}
+        ss.prepare_setcells_format(cl, bg_colr,
+                                   fields="userEnteredFormat.backgroundColor")
+
+        ss.run_prepared()
 
 
 def test_all_parametr(row_project, row_id):
@@ -322,6 +353,7 @@ def test_all_parametr(row_project, row_id):
         - название продукта
         - даты этапов
         - наличие типовой длительности для шаблона задач
+        - наличие дат во всех этапах
         - ????
     '''
     return True
@@ -354,26 +386,25 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                          folder_id, users_from_name,
                                          date_start)
             if not ok:
-                log(" Выполнение прервано")
+                log("!Выполнение прервано!")
                 return False
-            # установим исполнителей, пользовательские поля, признак выполненно
+            # установим исполнителей, пользовательские поля,
+            # признак выполненно, перенесем вехи на нужные даты
             log("   Обновление задач в проекте")
 
-            # считываем статус выполенно из  таблицы
-            finish_status = read_finish(ss, wr, num_row)
+            # считываем статусы и даты этапов из таблицы
+            finish_status, dates_stage = read_stage_info(ss, wr, num_row)
             # обновляем задачи с учетом всех статусов
             ok = update_sub_task(ss, wr, id_and_cfd[0],
                                  id_and_cfd[1], users_from_id,
                                  users_from_name, row_id[4:6],
-                                 num_row, finish_status)
+                                 num_row, finish_status, dates_stage)
             if not ok:
-                log("     Выполнение прервано")
+                log("!Выполнение прервано!")
                 return False
-            # проверяем дату первой задачи в этапе после выполненных этапов
-
-            # переносим вехи в соответсвии с датами во Wrike
-
-            # меняем статуc проекта - в работе
+            # Устанавливаем в таблицу W  вместо G
+            log_ss(ss, "W", f"BV{num_row}")
+            set_color_W(ss, num_row, finish_status)
 
         elif row_project[0] == "P":
             # удаляем проект из Wrike если он там есть
@@ -383,7 +414,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                 log(m, True, False)
                 log_ss(ss, "set canсel :", f"F{num_row}")
                 # delete_products_recurs(wr, id_product)
-                log_ss(ss, "Finish set cancel:" + + now_str(), f"F{num_row}")
+                log_ss(ss, "Finish set cancel:" + now_str(), f"F{num_row}")
 
 
 def read_holiday(ss):
@@ -405,15 +436,15 @@ def read_holiday(ss):
 
 def read_color_cells(ss, cells_range):
     '''возвращает список, элементы - строка
-        строка - список, элементы - кортеж из двух словарей
+        строка - список, элементы - кортеж из трех словарей
         1 - цвет фона
         2 - цвет шрифта
+        3 - значение в ячейке
     '''
     return_list = []
     resp = ss.sh_get(cells_range)[0]  # было без [0]
     # sh = resp["sheets"][0]
     data = resp["data"][0]
-
     row_data = data.get("rowData", [])
     n = 0
     for row in row_data:
@@ -425,8 +456,8 @@ def read_color_cells(ss, cells_range):
             ef_format = column["effectiveFormat"]
             bg_color = ef_format["backgroundColor"]
             fnt_color = ef_format["textFormat"]["foregroundColor"]
-            row_lst.append((bg_color, fnt_color))
-
+            value = column["formattedValue"]
+            row_lst.append((bg_color, fnt_color, value))
     return return_list
 
 
@@ -439,20 +470,25 @@ def main():
     ss.set_spreadsheet_byid(TABLE_ID)
     read_holiday(ss)
     global COLOR_FINISH
-    COLOR_FINISH = read_color_cells(ss, 'Рабочая таблица №1!BV2:BV2')[0][0]
+    fl = read_color_cells(ss, 'Рабочая таблица №1!BV2:BV2')[0][0]
+    COLOR_FINISH = (fl[0], fl[1])
     log("Приосоединяемся к Wrike")
     wr = Wrike.Wrike(TOKEN)
 
-    log("Получить id шаблона")
+    log("Получить id шаблонoв")
     permalink = "https://www.wrike.com/open.htm?id=637661621"
     #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
-    template_id = wr.get_folders("folders", permalink=permalink)[0]["id"]
-    log(f"ID шаблона {template_id}")
+    template = wr.get_folders("folders", permalink=permalink)[0]
+    template_id = template["id"]
+    template_title = template["title"]
+    log(f"ID шаблона {template_title} {template_id}")
 
     permalink = "https://www.wrike.com/open.htm?id=632246796"
     # 000 НОВЫЕ ПРОДУКТЫ
-    parent_id = wr.get_folders("folders", permalink=permalink)[0]["id"]
-    log(f"ID папки для размещения проектов {parent_id}")
+    parent = wr.get_folders("folders", permalink=permalink)[0]
+    parent_id = parent["id"]
+    parent_title = parent["title"]
+    log(f"ID папки  {parent_title} {parent_id}")
 
     log("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)

@@ -264,17 +264,19 @@ def del_in_templ():
     del_in_main(name_sheet="001 ШАБЛОНЫ (новые продукты Рубис)")
 
 
+def find_cf(wr, resp_cf, name_cf):
+    ''' Ищем в списке полей поле с нужным id
+    '''
+    return_value = ""
+    id_field = wr.customfields[name_cf]
+    for cf in resp_cf:
+        if cf["id"] == id_field:
+            return_value = cf["value"]
+            break
+    return return_value
+
+
 def len_mile():
-    def find_cf(wr, resp_cf, name_cf):
-        ''' Ищем в списке полей поле с нужным id
-        '''
-        return_value = ""
-        id_field = wr.customfields[name_cf]
-        for cf in resp_cf:
-            if cf["id"] == id_field:
-                return_value = cf["value"]
-                break
-        return return_value
 
     def find_stage(resp, find_num=""):
         sub = resp[0]["subTaskIds"]
@@ -373,6 +375,31 @@ def update_name():
             wr.update_task(id_task, title=name_task)
 
 
+def update_cf():
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+
+    print("Получить id шаблона")
+    permalink = "https://www.wrike.com/open.htm?id=637661621"
+    #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
+    template_id = wr.get_folders("folders", permalink=permalink)[0]["id"]
+    print(f"ID шаблона {template_id}")
+    fields = ["customFields"]
+    resp = wr.get_tasks(f"folders/{template_id}/tasks", subTasks="true",
+                        fields=fields)
+    n = 0
+    len_t = len(resp)
+    for task in resp:
+        n += 1
+        progress(n / len_t)
+        id_task = task["id"]
+        resp_cf = task["customFields"]
+        cfd = {}
+        cfd["num_stage"] = find_cf(wr, resp_cf, "Номер этапа")
+        cfd["num_task"] = find_cf(wr, resp_cf, "Номер задачи")
+        cfd["Норматив часы"] = find_cf(wr, resp_cf, "Норматив часы")
+        cf = wr.custom_field_arr(cfd)
+        wr.update_task(id_task, customFields=cf)
 
 
 def rout_on_sys_argv():
@@ -381,7 +408,8 @@ def rout_on_sys_argv():
     lst_func = sys.argv
     my_f = lst_func[1]
     # lst_f = ["len_mile", "del_in_main", "del_in_templ"]
-    lst_f = ["update_name"]
+    # lst_f = ["update_name"]
+    lst_f = ["update_cf"]
     if my_f in lst_f:
         d_globals[my_f]()
 

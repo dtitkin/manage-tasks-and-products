@@ -130,7 +130,8 @@ class Wrike():
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
                   importance=None, startDate=None, dueDate=None,
-                  scheduledDate=None, completedDate=None, type=None, limit=0,
+                  scheduledDate=None, completedDate=None, responsibles=None,
+                  permalink=None, type=None, limit=0,
                   sortField=None, sortOrder=None, subTasks=None,
                   customField=None, fields=None):
         '''Получить задачи с параметрами поиска
@@ -165,7 +166,7 @@ class Wrike():
                     removeParents=None, addResponsibles=None,
                     removeResponsibles=None, priorityAfter=None,
                     addSuperTasks=None, removeSuperTasks=None,
-                    customFields=None):
+                    customFields=None, customStatus=None):
         '''Обновить задачу
         '''
         task_dates = self.make_params(locals(),
@@ -188,7 +189,8 @@ class Wrike():
         return resp
 
     def copy_folder(self, folderid, parent, title, titlePrefix,
-                    copyDescriptions="true", copyResponsibles="true"):
+                    copyDescriptions="true", copyResponsibles="true",
+                    rescheduleDate=None, rescheduleMode=None):
         ''' копироуем папку/проект
         '''
         task_dates = self.make_params(locals(),
@@ -264,7 +266,8 @@ class Wrike():
         list_template = ["Норматив часы", "Номер этапа", "Номер задачи",
                          "Стратегическая группа", "Руководитель проекта",
                          "Клиент", "Бренд", "Код-1С", "Название рабочее",
-                         "Группа", "Линейка", "Проект", "Технолог"]
+                         "Группа", "Линейка", "Проект", "Технолог",
+                         "num_stage", "num_task"]
 
         return_dict = {}
         for field in resp:

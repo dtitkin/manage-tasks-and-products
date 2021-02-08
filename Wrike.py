@@ -126,7 +126,7 @@ class Wrike():
         'выполнение любого запроса del'
         resp = rs.delete(self.connect + del_str, headers=self.headers)
         self.test(resp)
-        return resp.json()
+        return self.manage_return(resp)
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
                   importance=None, startDate=None, dueDate=None,

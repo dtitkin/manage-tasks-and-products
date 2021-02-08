@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 import time
 import os
 
-from numpy import busday_offset, busday_count, datetime_as_string
+from numpy import busday_offset, datetime_as_string  # busday_count,
 
 import Wrike
 import Spreadsheet
@@ -78,6 +78,8 @@ def get_user(ss, wr):
     users_from_name = {}
     lst_mail = []
     for row in table:
+        if len(row) < 3:
+            continue
         users_from_name[row[0]] = {}  # имя пользователя
         users_from_name[row[0]]["id"] = ""
         users_from_name[row[0]]["group"] = row[1].strip(" ")
@@ -125,7 +127,7 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
            "Бренд": row_id[28]}
 
     resp = wr.copy_folder(template_id, folder_id, name_stage.upper(),
-                          f"{name_stage} ", rescheduleDate=date_start,
+                          "", rescheduleDate=date_start,
                           rescheduleMode="Start")
     id_project = resp[0]["id"]
     id_manager = users_from_name[row_id[4]]["id"]
@@ -192,11 +194,18 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
     return return_list
 
 
-def delete_products_recurs(wr, id_task, num=0):
-    ''' удаляем все задачи и вехи по продукту
+def delete_product(ss, wr, id_project, num_row):
+    ''' удаляем весь проект и стираем его ID
 
     '''
-    pass
+    log_ss(ss, "Del  project:", f"F{num_row}")
+    resp = wr.rs_del(f"folders/{id_project}")
+    if resp:
+        log_ss(ss, "Finish Del:" + now_str(), f"F{num_row}")
+        log_ss(ss, "", f"G{num_row}")
+        return True
+    else:
+        return False
 
 
 def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
@@ -346,17 +355,44 @@ def set_color_W(ss, num_row, finish_status):
         ss.run_prepared()
 
 
-def test_all_parametr(row_project, row_id):
+def test_all_parametr(row_project, row_id, num_row, users_from_name,
+                      users_from_id):
     '''Проверяем все параметры в строке
-        - менеджер
-        - технолог
-        - название продукта
-        - даты этапов
+        - менеджер - ок
+        - технолог - ок
+        - название продукта -ок
         - наличие типовой длительности для шаблона задач
-        - наличие дат во всех этапах
+        - наличие дат во всех этапах -ок
         - ????
     '''
-    return True
+    ok = True
+    if len(row_id[11]) == 0:
+        ok = False
+        log(f"{num_row} нет названия продукта")
+    # руководитель проекта
+    id_user = users_from_name.get(row_id[4])
+    if not id_user or not id_user.get("id"):
+        ok = False
+        rp = row_id[4]
+        log(f"{num_row} руководителя проекта {rp} нет во Wrike")
+    # технолог
+    id_user = users_from_name.get(row_id[5])
+    if not id_user or not id_user.get("id"):
+        ok = False
+        rp = row_id[5]
+        log(f"{num_row} технолог {rp} нет во Wrike")
+    in_all = True
+    if len(row_project) < 10:
+        in_all = False
+    else:
+        for x in row_project[2:]:
+            if not x:
+                in_all = False
+    if not in_all:
+        ok = False
+        log(f"{num_row} не установленны даты этапов")
+
+    return ok
 
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
@@ -374,7 +410,9 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
         else:
             row_id = table_id[num_row - 1]
         if row_project[0] == "G":
-            ok = test_all_parametr(row_project, row_id)
+            ok = test_all_parametr(row_project,
+                                   row_id, num_row, users_from_name,
+                                   users_from_id)
             if not ok:
                 continue
             m = f"Создаем продукт #{num_row} {row_id[10]} {row_id[11]}"
@@ -406,15 +444,16 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             log_ss(ss, "W", f"BV{num_row}")
             set_color_W(ss, num_row, finish_status)
 
-        elif row_project[0] == "P":
+        elif row_project[0] == "A":
             # удаляем проект из Wrike если он там есть
-            id_product = row_id[1]
-            if id_product:
-                m = f"Статус на Отменен #{num_row} {row_id[10]} {row_id[11]}"
+            id_project = row_id[1]
+            if id_project:
+                m = f"Удаляем проект #{num_row} {row_id[10]} {row_id[11]}"
                 log(m, True, False)
-                log_ss(ss, "set canсel :", f"F{num_row}")
-                # delete_products_recurs(wr, id_product)
-                log_ss(ss, "Finish set cancel:" + now_str(), f"F{num_row}")
+                ok = delete_product(ss, wr, id_project, num_row)
+                if not ok:
+                    m = f"Ошибка удаления #{num_row} {id_project}"
+                    log(m, True, False)
 
 
 def read_holiday(ss):

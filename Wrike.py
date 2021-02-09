@@ -66,7 +66,7 @@ class Wrike():
             pprint(params)
         return params
 
-    def manage_return(self, resp, arr):
+    def manage_return(self, resp, arr="data"):
         ''' определяет что вернуть из response на основании arr
 
             arr="data" or "json" or key in resp Wrike
@@ -109,7 +109,7 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
-        return resp.json()["data"]
+        return self.manage_return(resp)
 
     def rs_put(self, put_str, **kwargs):
         'выполнение любого запроса put'
@@ -120,17 +120,18 @@ class Wrike():
         finally:
             self.data = {}
         self.test(resp)
-        return resp.json()["data"]
+        return self.manage_return(resp)
 
     def rs_del(self, del_str, **kwargs):
         'выполнение любого запроса del'
         resp = rs.delete(self.connect + del_str, headers=self.headers)
         self.test(resp)
-        return resp.json()
+        return self.manage_return(resp)
 
     def get_tasks(self, task_area, descendants=None, title=None, status=None,
                   importance=None, startDate=None, dueDate=None,
-                  scheduledDate=None, completedDate=None, type=None, limit=0,
+                  scheduledDate=None, completedDate=None, responsibles=None,
+                  permalink=None, type=None, limit=0,
                   sortField=None, sortOrder=None, subTasks=None,
                   customField=None, fields=None):
         '''Получить задачи с параметрами поиска
@@ -162,13 +163,52 @@ class Wrike():
 
     def update_task(self, taskid, title=None, description=None, status=None,
                     importance=None, dates=None, addParents=None,
-                    removeParents=None, priorityAfter=None, addSuperTasks=None,
-                    removeSuperTasks=None, customFields=None):
+                    removeParents=None, addResponsibles=None,
+                    removeResponsibles=None, priorityAfter=None,
+                    addSuperTasks=None, removeSuperTasks=None,
+                    customFields=None, customStatus=None):
         '''Обновить задачу
         '''
         task_dates = self.make_params(locals(),
                                       ["self", "taskid", "task_dates"])
         resp = self.rs_put(f"tasks/{taskid}", **task_dates)
+        return resp
+
+    def get_folders(self, folderarea, permalink=None, descendants=None,
+                    customField=None, updatedDate=None, project=None,
+                    deleted=None, fields=None):
+        '''Получить папку/проект
+
+           folderarea - folders
+                        folders/{folderId}/folders
+                        spaces/{spaceId}/folders
+        '''
+        task_params = self.make_params(locals(),
+                                       ["self", "folderarea", "task_params"])
+        resp = self.rs_get(folderarea, **task_params)
+        return resp
+
+    def copy_folder(self, folderid, parent, title, titlePrefix,
+                    copyDescriptions=None, copyResponsibles=None,
+                    rescheduleDate=None, rescheduleMode=None,
+                    copyStatuses=None):
+        ''' копироуем папку/проект
+        '''
+
+        task_dates = self.make_params(locals(),
+                                      ["self", "folderid", "task_dates"])
+        resp = self.rs_post(f"copy_folder/{folderid}", **task_dates)
+        return resp
+
+    def update_folder(self, folderid, title=None, description=None,
+                      addParents=None, removeParents=None, addShareds=None,
+                      removeShareds=None, restore=None, customFields=None,
+                      customColumns=None, project=None, fields=None):
+        ''' обновить папку
+        '''
+        task_dates = self.make_params(locals(),
+                                      ["self", "folderid", "task_dates"])
+        resp = self.rs_put(f"folders/{folderid}", **task_dates)
         return resp
 
     def update_milestone_date(self, folderid, root_task_id):
@@ -228,7 +268,8 @@ class Wrike():
         list_template = ["Норматив часы", "Номер этапа", "Номер задачи",
                          "Стратегическая группа", "Руководитель проекта",
                          "Клиент", "Бренд", "Код-1С", "Название рабочее",
-                         "Группа", "Линейка", "Проект", "Технолог"]
+                         "Группа", "Линейка", "Проект", "Технолог",
+                         "num_stage", "num_task"]
 
         return_dict = {}
         for field in resp:
@@ -307,7 +348,7 @@ class Wrike():
         return id_dict
 
     def id_folders_on_name(self, foldersname_list):
-        ' по имени папки или проекта возвразает id проекта'
+        ' по имени папки или проекта возвращает id проекта'
         resp = self.rs_get("folders")
         if isinstance(foldersname_list, str):
             ls = []

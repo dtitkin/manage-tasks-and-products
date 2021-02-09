@@ -241,7 +241,7 @@ def set_conacts_on_table():
     print("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
-def del_in_main():
+def del_in_main(name_sheet="000 НОВЫЕ ПРОДУКТЫ"):
     ''' удалить все задачи из основной папки
     '''
     t_start = time.time()
@@ -249,8 +249,7 @@ def del_in_main():
     print("Приосоединяемся к Wrike")
     wr = Wrike.Wrike(TOKEN)
 
-    print("Получить папку")
-    name_sheet = "000 НОВЫЕ ПРОДУКТЫ"
+    print("Получить папку", name_sheet)
     folder_id = wr.id_folders_on_name([name_sheet])[name_sheet]
     print(folder_id)
     root_task_id = ""
@@ -261,17 +260,23 @@ def del_in_main():
     print("Выполненно за:", int(t_finish - t_start), " секунд")
 
 
+def del_in_templ():
+    del_in_main(name_sheet="001 ШАБЛОНЫ (новые продукты Рубис)")
+
+
+def find_cf(wr, resp_cf, name_cf):
+    ''' Ищем в списке полей поле с нужным id
+    '''
+    return_value = ""
+    id_field = wr.customfields[name_cf]
+    for cf in resp_cf:
+        if cf["id"] == id_field:
+            return_value = cf["value"]
+            break
+    return return_value
+
+
 def len_mile():
-    def find_cf(wr, resp_cf, name_cf):
-        ''' Ищем в списке полей поле с нужным id
-        '''
-        return_value = ""
-        id_field = wr.customfields[name_cf]
-        for cf in resp_cf:
-            if cf["id"] == id_field:
-                return_value = cf["value"]
-                break
-        return return_value
 
     def find_stage(resp, find_num=""):
         sub = resp[0]["subTaskIds"]
@@ -346,6 +351,55 @@ def len_mile():
         start_date = end_date
 
 
+def update_name():
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+
+    print("Получить id шаблона")
+    permalink = "https://www.wrike.com/open.htm?id=637661621"
+    #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
+    template_id = wr.get_folders("folders", permalink=permalink)[0]["id"]
+    print(f"ID шаблона {template_id}")
+
+    resp = wr.get_tasks(f"folders/{template_id}/tasks", subTasks="true")
+    n = 0
+    len_t = len(resp)
+    for task in resp:
+        n += 1
+        progress(n / len_t)
+        name_task = task["title"]
+        id_task = task["id"]
+        end_s = name_task.find("[")
+        if end_s > -1:
+            name_task = name_task[0:end_s]
+            wr.update_task(id_task, title=name_task)
+
+
+def update_cf():
+    print("Приосоединяемся к Wrike")
+    wr = Wrike.Wrike(TOKEN)
+
+    print("Получить id шаблона")
+    permalink = "https://www.wrike.com/open.htm?id=637661621"
+    #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
+    template_id = wr.get_folders("folders", permalink=permalink)[0]["id"]
+    print(f"ID шаблона {template_id}")
+    fields = ["customFields"]
+    resp = wr.get_tasks(f"folders/{template_id}/tasks", subTasks="true",
+                        fields=fields)
+    n = 0
+    len_t = len(resp)
+    for task in resp:
+        n += 1
+        progress(n / len_t)
+        id_task = task["id"]
+        resp_cf = task["customFields"]
+        cfd = {}
+        cfd["num_stage"] = find_cf(wr, resp_cf, "Номер этапа")
+        cfd["num_task"] = find_cf(wr, resp_cf, "Номер задачи")
+        cfd["Норматив часы"] = find_cf(wr, resp_cf, "Норматив часы")
+        cf = wr.custom_field_arr(cfd)
+        wr.update_task(id_task, customFields=cf)
 
 
 def rout_on_sys_argv():
@@ -353,7 +407,9 @@ def rout_on_sys_argv():
     d_globals = globals()
     lst_func = sys.argv
     my_f = lst_func[1]
-    lst_f = ["len_mile", "del_in_main"]
+    # lst_f = ["len_mile", "del_in_main", "del_in_templ"]
+    # lst_f = ["update_name"]
+    lst_f = ["update_cf"]
     if my_f in lst_f:
         d_globals[my_f]()
 

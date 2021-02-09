@@ -109,16 +109,24 @@ class Spreadsheet():
             startCell, endCell = cellsRange.split(":")[0:2]
             cellsRange = {}
             rangeAZ = range(ord('A'), ord('Z') + 1)
-            if ord(startCell[0]) in rangeAZ:
-                cellsRange["startColumnIndex"] = ord(startCell[0]) - ord('A')
-                startCell = startCell[1:]
-            if ord(endCell[0]) in rangeAZ:
-                cellsRange["endColumnIndex"] = ord(endCell[0]) - ord('A') + 1
-                endCell = endCell[1:]
-            if len(startCell) > 0:
-                cellsRange["startRowIndex"] = int(startCell) - 1
-            if len(endCell) > 0:
-                cellsRange["endRowIndex"] = int(endCell)
+            start = 0
+            abc = list(filter(lambda w: ord(w) in rangeAZ, startCell))
+            num_startCell = startCell[len(abc):]
+            if len(abc) > 1:
+                start = 26 * (ord(abc[0]) - ord("A") + 1)
+            cellsRange["startColumnIndex"] = start + ord(abc[-1]) - ord('A')
+
+            start = 0
+            abc = list(filter(lambda w: ord(w) in rangeAZ, endCell))
+            num_endCell = startCell[len(abc):]
+            if len(abc) > 1:
+                start = 26 * (ord(abc[0]) - ord("A") + 1)
+            cellsRange["endColumnIndex"] = start + ord(abc[-1]) - ord('A') + 1
+
+            if len(num_startCell) > 0:
+                cellsRange["startRowIndex"] = int(num_startCell) - 1
+            if len(num_endCell) > 0:
+                cellsRange["endRowIndex"] = int(num_endCell)
         cellsRange["sheetId"] = self.sheetId
         return cellsRange
 
@@ -169,12 +177,34 @@ class Spreadsheet():
         if len(cellsRange) > 0:
             getRes = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheetId,
-                range= self.sheetTitle + "!" + cellsRange,
+                range=self.sheetTitle + "!" + cellsRange,
                 majorDimension=majorDimension).execute()
             if self.debugMode:
                 pprint(getRes)
-        return getRes["values"]
 
+        res = getRes.get("values")
+        if not res:
+            res = [[""]]
+        return res
+
+    def sh_get(self, cellsRange):
+        sheet_and_range = cellsRange.split("!")
+        if len(sheet_and_range) == 2:
+            self.sheetTitle = sheet_and_range[0]
+            cellsRange = sheet_and_range[1]
+        if self.spreadsheetId is None:
+            raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
+        getRes = {}
+        if len(cellsRange) > 0:
+            getRes = self.service.spreadsheets().get(
+                spreadsheetId=self.spreadsheetId,
+                ranges=self.sheetTitle + "!" + cellsRange,
+                includeGridData=True).execute()
+            if self.debugMode:
+                pprint(getRes)
+        return getRes["sheets"]
 
 # Функции тестирования класса
 '''CREDENTIALS_FILE = 'creds.json'

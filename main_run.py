@@ -445,6 +445,54 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
 
     return ok
 
+
+def write_date_to_google(ss, wr, num_row, project_id):
+    ''' устанавливает даты из wrike Гугл таблицу
+        Отмечаает этапы выполеннными
+    '''
+    fields = ["customFields"]
+    resp = wr.get_tasks(f"folders/{project_id}/tasks", type="Milestone",
+                        fields=fields)
+    lst = ["" for x in range(0, 8)]
+    lst_finish = ["" for x in range(0, 8)]
+    lst_values = []
+    lst_values.append(lst)
+
+    for task in resp:
+        resp_cf = task["customFields"]
+        num_stage = find_cf(wr, resp_cf, "num_stage")
+        num_task = find_cf(wr, resp_cf, "num_task")
+        if num_task[0:2] == "00" and len(num_stage) == 1:
+            due_date = task["dates"]["due"]
+            y, m, d = due_date[0:10].split("-")
+            value = f"{d}.{m}.{y}"
+            lst[int(num_stage) - 1] = value
+            if task["status"] == "Completed":
+                lst_finish[int(num_stage) - 1] = "Finish"
+    ss.sheetTitle = "Рабочая таблица №1"
+    ss.sheetId = 1375512515
+    cells = f"BX{num_row}:CE{num_row}"
+    ss.prepare_setvalues(cells, lst_values)
+    lst_range = ["BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE"]
+    for n, f in enumerate(lst_finish, 0):
+        column = lst_range[n]
+        txt_field = "userEnteredFormat.textFormat"
+        bcg_field = "userEnteredFormat.backgroundColor"
+        cells = f"{column}{num_row}:{column}{num_row}"
+        if f != "Finish":
+            color_bc = Spreadsheet.htmlColorToJSON("#cfe2f3")
+            color_font = Spreadsheet.htmlColorToJSON("#000000")
+        else:
+            color_bc = Spreadsheet.htmlColorToJSON("#6aa84f")
+            color_font = Spreadsheet.htmlColorToJSON("#ffffff")
+        bg_color = {"backgroundColor": color_bc}
+        txt_color = {"textFormat": {"foregroundColor": color_font}}
+        ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
+        ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
+    ss.run_prepared()
+    return True
+
+
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
 
@@ -507,6 +555,11 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
             set_color_W(ss, num_row, finish_status)
+        elif row_project[0] == "W":
+            # обновление дат в гугл и признака выполенно
+            m = f"Обновляем даты из Wrike #{num_row} {row_id[10]} {row_id[11]}"
+            log(m, True, False)
+            ok = write_date_to_google(ss, wr, num_row, row_id[1])
 
         elif row_project[0] == "A":
             # удаляем проект из Wrike если он там есть

@@ -131,3 +131,4 @@ dmypy.json
 # my project ignore
 creds.json
 setenv.sh
+.DS_Store

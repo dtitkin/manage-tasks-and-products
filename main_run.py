@@ -3,6 +3,7 @@ from pprint import pprint
 from datetime import datetime, timedelta, date
 import time
 import os
+import sys
 
 from numpy import busday_offset, datetime_as_string  # busday_count,
 
@@ -496,6 +497,11 @@ def write_date_to_google(ss, wr, num_row, project_id):
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
 
+    lst_argv = sys.argv
+    rp_filter = ""
+    if lst_argv > 1:
+        rp_filter = lst_argv[1]
+        log(f"Обрабатываем строки РП {rp_filter}")
     ss.sheetTitle = "Рабочая таблица №1"
     table_id = ss.values_get("F:AH")
     table_project = ss.values_get("BV:CF")
@@ -508,6 +514,9 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             row_id = ["" for x in range(0, 29)]
         else:
             row_id = table_id[num_row - 1]
+        if rp_filter:
+            if row_id[4] != rp_filter:
+                continue
         if row_project[0] == "G":
             ok = test_all_parametr(row_project,
                                    row_id, num_row, users_from_name,

@@ -174,7 +174,7 @@ class Wrike():
         resp = self.rs_put(f"tasks/{taskid}", **task_dates)
         return resp
 
-    def get_folders(self, folderarea, permalink=None, descendants="true",
+    def get_folders(self, folderarea, permalink=None, descendants=None,
                     customField=None, updatedDate=None, project=None,
                     deleted=None, fields=None):
         '''Получить папку/проект
@@ -189,10 +189,12 @@ class Wrike():
         return resp
 
     def copy_folder(self, folderid, parent, title, titlePrefix,
-                    copyDescriptions="true", copyResponsibles="true",
-                    rescheduleDate=None, rescheduleMode=None):
+                    copyDescriptions=None, copyResponsibles=None,
+                    rescheduleDate=None, rescheduleMode=None,
+                    copyStatuses=None):
         ''' копироуем папку/проект
         '''
+
         task_dates = self.make_params(locals(),
                                       ["self", "folderid", "task_dates"])
         resp = self.rs_post(f"copy_folder/{folderid}", **task_dates)

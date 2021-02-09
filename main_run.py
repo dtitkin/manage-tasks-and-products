@@ -94,6 +94,16 @@ def get_user(ss, wr):
             users_from_id[id_user]["name"] = name_user
             users_from_id[id_user]["group"] = gr_user
             users_from_name[name_user]["id"] = id_user
+
+    # найдем помошника менеджера и запишем его к менеджеру
+    for key, value in users_from_name.items():
+        if value["group"].find("[") > 0:
+            group, name = value["group"].split("[")
+            name = name.strip("]")
+            user = users_from_name.get(name)
+            if user:
+                user["idhelper"] = value["id"]
+
     return users_from_name, users_from_id
 
 
@@ -104,7 +114,7 @@ def chek_old_session(ss, wr):
 
 
 def new_product(ss, wr, row_id, num_row, template_id, folder_id,
-                users_from_name, date_start):
+                users_from_name, date_start, personal_template):
     ''' По признаку G в строке продукта создаем новый проект во Wrike
     '''
     # обозначим в гугл таблице начало работы
@@ -126,14 +136,26 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
            "Клиент": row_id[27],
            "Бренд": row_id[28]}
 
-    resp = wr.copy_folder(template_id, folder_id, name_stage.upper(),
+    if personal_template:
+        id_template = personal_template
+    else:
+        id_template = template_id
+    resp = wr.copy_folder(id_template, folder_id, name_stage.upper(),
                           "", rescheduleDate=date_start,
-                          rescheduleMode="Start")
+                          rescheduleMode="Start", copyStatuses="false",
+                          copyResponsibles="true")
     id_project = resp[0]["id"]
     id_manager = users_from_name[row_id[4]]["id"]
 
     cf = wr.custom_field_arr(cfd)
-    pr = {"ownersAdd": [id_manager]}
+    resp_project = resp[0]["project"]
+    ownerIds = resp_project["ownerIds"]
+    if ownerIds == id_manager:
+        pr = None
+    else:
+        pr = {"ownersAdd": [id_manager]}
+        if ownerIds:
+            pr["ownersRemove"] = ownerIds
     resp = wr.update_folder(id_project, customFields=cf, project=pr)
     # сохраним в таблице ID
     log_ss(ss, id_project, f"G{num_row}")
@@ -157,8 +179,10 @@ def find_cf(wr, resp_cf, name_cf):
     return return_value
 
 
-def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
-    '''Возворащает список пользователей которых нужно удалить из шаблона
+def find_r_bles(task_user, users_from_id, users_from_name, own_teh, num_task,
+                remove=True):
+    '''Возвращает список пользователей которых нужно удалить из шаблона
+        или установить в шаблон
     '''
     return_list = []
     manager_id = users_from_name[own_teh[0]]["id"]
@@ -169,7 +193,6 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
     group_user["RP_helper"] = []
     group_user["Tech"] = []
     group_user["Other"] = []
-
     for num, user in enumerate(task_user, 1):
         group = users_from_id[user]["group"]
         slice_pos = group.find("[")
@@ -184,12 +207,27 @@ def find_r_bles(task_user, users_from_id, users_from_name, own_teh):
         elif group == "Технолог":
             group_user["Tech"].append(user)
 
-    if len(group_user["Tech"]) > 0:
-        tmp_lst = [vl for vl in group_user["Tech"] if vl != teh_id]
-        return_list.extend(tmp_lst)
-    if len(group_user["RP"]) > 0:
-        tmp_lst = [vl for vl in group_user["RP"] if vl != manager_id]
-        return_list.extend(tmp_lst)
+    if remove:
+        if len(group_user["Tech"]) > 0:
+            tmp_lst = [vl for vl in group_user["Tech"] if vl != teh_id]
+            return_list.extend(tmp_lst)
+        if len(group_user["RP"]) > 0:
+            tmp_lst = [vl for vl in group_user["RP"] if vl != manager_id]
+            return_list.extend(tmp_lst)
+            if len(group_user["RP_helper"]) > 0:
+                id_helper = users_from_name[own_teh[0]].get("idhelper")
+                if not id_helper:
+                    return_list.extend(group_user["RP_helper"])
+
+    else:
+        if len(group_user["RP"]) > 0:
+            return_list.append(manager_id)
+            id_helper = users_from_name[own_teh[0]].get("idhelper")
+            if id_helper and num_task.find("*") > 0:
+                return_list.append(id_helper)
+        if len(group_user["Tech"]) > 0:
+            return_list.append(teh_id)
+        return_list.extend(group_user["Other"])
 
     return return_list
 
@@ -203,13 +241,15 @@ def delete_product(ss, wr, id_project, num_row):
     if resp:
         log_ss(ss, "Finish Del:" + now_str(), f"F{num_row}")
         log_ss(ss, "", f"G{num_row}")
+        log_ss(ss, "", f"BV{num_row}")
         return True
     else:
         return False
 
 
 def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
-                    own_teh, num_row, finish_status, dates_stage):
+                    own_teh, num_row, finish_status, dates_stage,
+                    personal_template):
     ''' Обновление задач в проекте. Установка исполнителей, пользовательских
         полей, статуса выполненно
     '''
@@ -233,15 +273,25 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
         cfd["Норматив часы"] = find_cf(wr, resp_cf, "Норматив часы")
         cf = wr.custom_field_arr(cfd)
         # определям список пользователей которых нужно исключить из задачи
-        r_bles = find_r_bles(task["responsibleIds"], users_from_id,
-                             users_from_name, own_teh)
-        #  проверяем на статус выполненно
+        ownersid = task["responsibleIds"]
         num_stage = find_cf(wr, resp_cf, "num_stage")
         num_task = find_cf(wr, resp_cf, "num_task")
+
+        if personal_template:
+            remove_r_bles = find_r_bles(ownersid, users_from_id,
+                                        users_from_name, own_teh, num_task)
+            add_r_bles = find_r_bles(ownersid, users_from_id,
+                                     users_from_name, own_teh, num_task,
+                                     False)
+        else:
+            add_r_bles = None
+            remove_r_bles = find_r_bles(ownersid, users_from_id,
+                                        users_from_name, own_teh, num_task)
+        #  проверяем на статус выполненно
         if num_stage in finish_status:
             status = "Completed"
         else:
-            status = None
+            status = "Active"
         # у 'этапов' устанавливаем дату из таблицы
         type_task = task["dates"]["type"]
         dt = None
@@ -250,7 +300,8 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
                 dt = wr.dates_arr(type_="Milestone",
                                   due=dates_stage[num_stage].isoformat())
         #  обновляем задачу
-        resp_upd = wr.update_task(task["id"], removeResponsibles=r_bles,
+        resp_upd = wr.update_task(task["id"], removeResponsibles=remove_r_bles,
+                                  addResponsibles=add_r_bles,
                                   customFields=cf, status=status, dates=dt)
         if len(resp_upd) == 0:
             log(task["id"] + " ошибка обновления")
@@ -270,7 +321,7 @@ def get_len_stage(num_stage, num_template="#1"):
     template["#1"]["2"] = 6
     template["#1"]["3"] = 5
     template["#1"]["4"] = 1
-    template["#1"]["5"] = 8
+    template["#1"]["5"] = 10
     template["#1"]["6"] = 92
     template["#1"]["7"] = 7
     template["#1"]["8"] = 2
@@ -385,7 +436,7 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
     if len(row_project) < 10:
         in_all = False
     else:
-        for x in row_project[2:]:
+        for x in row_project[2:10]:
             if not x:
                 in_all = False
     if not in_all:
@@ -399,7 +450,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
 
     ss.sheetTitle = "Рабочая таблица №1"
     table_id = ss.values_get("F:AH")
-    table_project = ss.values_get("BV:CE")
+    table_project = ss.values_get("BV:CF")
     num_row = 19
     for row_project in table_project[19:]:
         num_row += 1
@@ -419,10 +470,22 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             log(m, True, False)
             #  определяем дату для старта проекта
             date_start = read_date_for_project(ss, row_project[2])
+            # найдем персональный шаблон
+            personal_template = None
+            if len(row_project) == 11:
+                nrt = row_project[10]
+                if len(nrt) > 0 and nrt.isdigit():
+                    ss.sheetTitle = "Рабочая таблица №1"
+                    personal_template = ss.values_get(f"G{nrt}:G{nrt}")[0][0]
+                    if not personal_template:
+                        log(f"Для {num_row} в строке {nrt} нет шаблона.")
+                        log(f"Строка  {num_row} не обрабатывается.")
+                        continue
             #  создаем новый проект
             id_and_cfd, ok = new_product(ss, wr, row_id, num_row, template_id,
                                          folder_id, users_from_name,
-                                         date_start)
+                                         date_start, personal_template)
+
             if not ok:
                 log("!Выполнение прервано!")
                 return False
@@ -436,7 +499,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             ok = update_sub_task(ss, wr, id_and_cfd[0],
                                  id_and_cfd[1], users_from_id,
                                  users_from_name, row_id[4:6],
-                                 num_row, finish_status, dates_stage)
+                                 num_row, finish_status, dates_stage,
+                                 personal_template)
             if not ok:
                 log("!Выполнение прервано!")
                 return False

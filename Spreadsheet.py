@@ -181,7 +181,11 @@ class Spreadsheet():
                 majorDimension=majorDimension).execute()
             if self.debugMode:
                 pprint(getRes)
-        return getRes["values"]
+
+        res = getRes.get("values")
+        if not res:
+            res = [[""]]
+        return res
 
     def sh_get(self, cellsRange):
         sheet_and_range = cellsRange.split("!")

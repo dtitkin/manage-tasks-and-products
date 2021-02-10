@@ -44,7 +44,10 @@ def log_ss(ss, msg, cells_range):
 def make_date(usr_date):
     if not usr_date:
         return date.today()
-    lst_date = usr_date[0:10].split(".")
+    if usr_date.find(".") > -1:
+        lst_date = usr_date[0:10].split(".")
+    else:
+        lst_date = usr_date[0:10].split("/")
     return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
 
 

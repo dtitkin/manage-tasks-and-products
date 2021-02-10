@@ -11,7 +11,7 @@ from sub_func import now_str, progress, log, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
-VERSION = '0.5'
+VERSION = '0.51'
 HOLYDAY = []
 COLOR_FINISH = []
 
@@ -49,10 +49,16 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
         id_template = personal_template
     else:
         id_template = template_id
-    resp = wr.copy_folder(id_template, folder_id, name_stage.upper(),
-                          "", rescheduleDate=date_start,
-                          rescheduleMode="Start", copyStatuses="false",
-                          copyResponsibles="true")
+    if not personal_template:
+        resp = wr.copy_folder(id_template, folder_id, name_stage.upper(),
+                              "", rescheduleDate=date_start,
+                              rescheduleMode="Start", copyStatuses="false",
+                              copyResponsibles="true")
+    else:
+        resp = wr.copy_folder(id_template, folder_id, name_stage.upper(),
+                              "", rescheduleDate=None,
+                              rescheduleMode=None, copyStatuses="true",
+                              copyResponsibles="true")
     id_project = resp[0]["id"]
     id_manager = users_from_name[row_id[4]]["id"]
 
@@ -183,18 +189,21 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
             add_r_bles = None
             remove_r_bles = find_r_bles(ownersid, users_from_id,
                                         users_from_name, own_teh, num_task)
-        #  проверяем на статус выполненно
-        if num_stage in finish_status:
-            status = "Completed"
-        else:
-            status = "Active"
-        # у 'этапов' устанавливаем дату из таблицы
+
         type_task = task["dates"]["type"]
         dt = None
-        if type_task == "Milestone" and num_task[0:2] == "00":
-            if dates_stage.get(num_stage):
-                dt = wr.dates_arr(type_="Milestone",
-                                  due=dates_stage[num_stage].isoformat())
+        status = None
+        if not personal_template:
+            #  проверяем на статус выполненно
+            if num_stage in finish_status:
+                status = "Completed"
+            else:
+                status = "Active"
+            # у 'этапов' устанавливаем дату из таблицы
+            if type_task == "Milestone" and num_task[0:2] == "00":
+                if dates_stage.get(num_stage):
+                    dt = wr.dates_arr(type_="Milestone",
+                                      due=dates_stage[num_stage].isoformat())
         #  обновляем задачу
         resp_upd = wr.update_task(task["id"], removeResponsibles=remove_r_bles,
                                   addResponsibles=add_r_bles,
@@ -217,7 +226,8 @@ def read_date_for_project(ss, end_stage, num_stage="1"):
     date_stage = make_date(end_stage)  # из поля забираем только дату
     len_stage = get_len_stage(num_stage)
     date_for_task = busday_offset(date_stage, -1 * (len_stage - 1),
-                                  weekmask="1111100", holidays=HOLYDAY)
+                                  weekmask="1111100", holidays=HOLYDAY,
+                                  roll="forward")
     date_for_task = datetime_as_string(date_for_task)
     # print("Дата старта проекта", date_for_task)
     return date_for_task
@@ -375,6 +385,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                         log(f"Для {num_row} в строке {nrt} нет шаблона.")
                         log(f"Строка  {num_row} не обрабатывается.")
                         continue
+                    log(f"   используем шаблон из строки {nrt}")
             #  создаем новый проект
             id_and_cfd, ok = new_product(ss, wr, row_id, num_row, template_id,
                                          folder_id, users_from_name,
@@ -401,7 +412,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                 return False
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
-            set_color_W(ss, num_row, finish_status)
+            ok = write_date_to_google(ss, wr, num_row, id_and_cfd[0])
+            # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":
             # обновление дат в гугл и признака выполенно
             m = f"Обновляем даты из Wrike #{num_row} {row_id[10]} {row_id[11]}"

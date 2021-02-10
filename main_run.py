@@ -1,111 +1,19 @@
 
-from pprint import pprint
-from datetime import datetime, timedelta, date
 import time
-import os
+import configparser
 import sys
 
 from numpy import busday_offset, datetime_as_string  # busday_count,
 
 import Wrike
 import Spreadsheet
+from sub_func import now_str, progress, log, log_ss, make_date, read_holiday
+from sub_func import read_color_cells, read_stage_info, get_user
+from sub_func import find_cf, get_len_stage
 
-
-CREDENTIALS_FILE = "creds.json"
-TABLE_ID = os.getenv("gogletableid")
-TOKEN = os.getenv("wriketoken")
-ONE_DAY = timedelta(days=1)
+VERSION = '0.5'
 HOLYDAY = []
-COLOR_FINISH = {}
-
-
-def now_str():
-    now = datetime.now()
-    fmt = '%d.%m.%Y:%H:%M:%S'
-    str_now = now.strftime(fmt)
-    return str_now
-
-
-def progress(percent=0, width=30):
-    left = int(width * percent) // 1
-    right = width - left
-    print('\r[', '#' * left, ' ' * right, ']',
-          f' {percent * 100:.0f}%',
-          sep='', end='', flush=True)
-
-
-def log(msg, prn_time=False, one_str=False):
-    str_now = now_str()
-    if prn_time:
-        print(str_now, end=" ")
-        if one_str:
-            print('\r', msg, sep='', end='', flush=True)
-        else:
-            pprint(msg)
-    else:
-        if one_str:
-            print('\r', msg, sep='', end='', flush=True)
-        else:
-            pprint(msg)
-
-
-def log_ss(ss, msg, cells_range):
-    value = [[msg]]
-    my_range = f"{cells_range}:{cells_range}"
-    ss.prepare_setvalues(my_range, value)
-    ss.run_prepared()
-
-
-def make_date(usr_date):
-    if not usr_date:
-        return date.today()
-    lst_date = usr_date[0:10].split(".")
-    return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
-
-
-def get_user(ss, wr):
-    ''' возвращает два словаря пользователей
-    ключ по имени из гугл таблицы
-    ключ по id из wrike
-    '''
-    def find_name_from_email(email, users_from_name):
-        for user_name, user_val, in users_from_name.items():
-            if user_val["email"] == email:
-                return user_name, user_val["group"]
-
-    ss.sheetTitle = "Ресурсы"
-    table = ss.values_get("B50:D89")
-    users_from_id = {}
-    users_from_name = {}
-    lst_mail = []
-    for row in table:
-        if len(row) < 3:
-            continue
-        users_from_name[row[0]] = {}  # имя пользователя
-        users_from_name[row[0]]["id"] = ""
-        users_from_name[row[0]]["group"] = row[1].strip(" ")
-        users_from_name[row[0]]["email"] = row[2].strip(" ")
-        lst_mail.append(row[2])
-    id_dict = wr.id_contacts_on_email(lst_mail)
-    for email, id_user in id_dict.items():
-        if email in lst_mail and id_user is not None:
-            users_from_id[id_user] = {}
-            users_from_id[id_user]["email"] = email
-            name_user, gr_user = find_name_from_email(email, users_from_name)
-            users_from_id[id_user]["name"] = name_user
-            users_from_id[id_user]["group"] = gr_user
-            users_from_name[name_user]["id"] = id_user
-
-    # найдем помошника менеджера и запишем его к менеджеру
-    for key, value in users_from_name.items():
-        if value["group"].find("[") > 0:
-            group, name = value["group"].split("[")
-            name = name.strip("]")
-            user = users_from_name.get(name)
-            if user:
-                user["idhelper"] = value["id"]
-
-    return users_from_name, users_from_id
+COLOR_FINISH = []
 
 
 def chek_old_session(ss, wr):
@@ -165,19 +73,6 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     log_ss(ss, "Finish new product:" + now_str(), f"F{num_row}")
     ok = True
     return (id_project, cfd), ok  # id созданного проекта , заполненные поля
-
-
-def find_cf(wr, resp_cf, name_cf):
-    ''' Ищем в списке полей поле с нужным id по имени
-        возвращеем значение
-    '''
-    return_value = ""
-    id_field = wr.customfields[name_cf]
-    for cf in resp_cf:
-        if cf["id"] == id_field:
-            return_value = cf["value"]
-            break
-    return return_value
 
 
 def find_r_bles(task_user, users_from_id, users_from_name, own_teh, num_task,
@@ -315,22 +210,6 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
     return False
 
 
-def get_len_stage(num_stage, num_template="#1"):
-    template = {}
-    template["#1"] = {}
-    template["#1"]["1"] = 4
-    template["#1"]["2"] = 6
-    template["#1"]["3"] = 5
-    template["#1"]["4"] = 1
-    template["#1"]["5"] = 10
-    template["#1"]["6"] = 92
-    template["#1"]["7"] = 7
-    template["#1"]["8"] = 2
-
-    my_tmpl = template[num_template]
-    return my_tmpl.get(num_stage)
-
-
 def read_date_for_project(ss, end_stage, num_stage="1"):
     ''' считываем с таблицы дату завершения этапа и по длительности этапа
         определяем дату задачи в этапе.
@@ -342,48 +221,6 @@ def read_date_for_project(ss, end_stage, num_stage="1"):
     date_for_task = datetime_as_string(date_for_task)
     # print("Дата старта проекта", date_for_task)
     return date_for_task
-
-
-def set_date_on_task(ss, wr, num_row, num_task, end_stage, num_stage="1"):
-    ''' устанавливаем дату у задачи с определенным номером
-        дату у задачи вычисляем в зависимости от длительности этапа
-        длительность этапа берем из функции get_len_stage
-    '''
-    '''log_ss(ss, "set date:", f"F{num_row}")
-    date_stage = make_date(end_stage)
-    len_stage = get_len_stage(num_stage)
-    date_for_task = busday_offset(date_stage, -1 * len_stage - 1,
-                                  weekmask="1111100", holidays=HOLYDAY)
-    date_for_task = datetime_as_string(date_for_task)
-    # найдем задачу у которой нужно поменять день
-
-    id_task = num_id_task[num_task]["id"]
-    duration = num_id_task[num_task]["duration"]
-    if id_task:
-        log(f"     меняем дату у задачи {num_task}:{id_task}")
-        dt = wr.dates_arr(type_="Planned", start=date_for_task,
-                          duration=duration)
-        wr.update_task(id_task, dates=dt)
-    log_ss(ss, "Finish set date:" + now_str(), f"F{num_row}")
-    return date_for_task'''
-
-
-def read_stage_info(ss, wr, num_row):
-    ''' запоминаем из таблицы значение, цвет шрифта и цвет ячейки
-    '''
-    finish_list = []
-    dates_stage = {}
-    lst_range = ["BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE"]
-    cells_range = f"Рабочая таблица №1!BX{num_row}:CE{num_row}"
-    lst_status = read_color_cells(ss, cells_range)[0]
-    for k, cl in enumerate(lst_range, 1):
-        color_stage = (lst_status[k - 1][0], lst_status[k - 1][1])
-        stage_value = lst_status[k - 1][2]
-        if str(color_stage) == str(COLOR_FINISH):
-            # запоминаем у каких этапов нужно установить Finish
-            finish_list.append(str(k))
-        dates_stage[str(k)] = make_date(stage_value)
-    return finish_list, dates_stage
 
 
 def set_color_W(ss, num_row, finish_status):
@@ -499,7 +336,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
 
     lst_argv = sys.argv
     rp_filter = ""
-    if lst_argv > 1:
+    if len(lst_argv) > 1:
         rp_filter = lst_argv[1]
         log(f"Обрабатываем строки РП {rp_filter}")
     ss.sheetTitle = "Рабочая таблица №1"
@@ -551,7 +388,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             log("   Обновление задач в проекте")
 
             # считываем статусы и даты этапов из таблицы
-            finish_status, dates_stage = read_stage_info(ss, wr, num_row)
+            finish_status, dates_stage = read_stage_info(ss, wr, num_row,
+                                                         COLOR_FINISH)
             # обновляем задачи с учетом всех статусов
             ok = update_sub_task(ss, wr, id_and_cfd[0],
                                  id_and_cfd[1], users_from_id,
@@ -582,58 +420,22 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                     log(m, True, False)
 
 
-def read_holiday(ss):
-    holidays_str = ss.values_get("Рабочий календарь!A:A")
-    global HOLYDAY
-    do_it = False
-    for hd in holidays_str:
-        if (len(hd) == 0):
-            continue
-        if hd[0] == "Шаблон{":
-            do_it = True
-            continue
-        elif hd[0] == "Шаблон}":
-            break
-        if do_it:
-            d_str = hd[0].split(".")
-            HOLYDAY.append(date(int(d_str[2]), int(d_str[1]), int(d_str[0])))
-
-
-def read_color_cells(ss, cells_range):
-    '''возвращает список, элементы - строка
-        строка - список, элементы - кортеж из трех словарей
-        1 - цвет фона
-        2 - цвет шрифта
-        3 - значение в ячейке
-    '''
-    return_list = []
-    resp = ss.sh_get(cells_range)[0]  # было без [0]
-    # sh = resp["sheets"][0]
-    data = resp["data"][0]
-    row_data = data.get("rowData", [])
-    n = 0
-    for row in row_data:
-        return_list.append([])
-        row_lst = return_list[n]
-        n += 1
-        vls = row["values"]
-        for column in vls:
-            ef_format = column["effectiveFormat"]
-            bg_color = ef_format["backgroundColor"]
-            fnt_color = ef_format["textFormat"]["foregroundColor"]
-            value = column["formattedValue"]
-            row_lst.append((bg_color, fnt_color, value))
-    return return_list
-
-
 def main():
     '''Создает шаблон во Wrike на основе Гугл таблицы
     '''
     t_start = time.time()
-    log("Приосоединяемся к Гугл", True, False)
+    CREDENTIALS_FILE = "creds.json"
+    cfg = configparser.ConfigParser()
+    cfg.read('settings.cfg')
+    TABLE_ID = cfg["spreadsheet"]["gogletableid"]
+    TOKEN = cfg["wrike"]["wriketoken"]
+
+    log(f"Запуск скрипта верси {VERSION}", True, False)
+    log("Приосоединяемся к Гугл")
     ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
     ss.set_spreadsheet_byid(TABLE_ID)
-    read_holiday(ss)
+    global HOLYDAY
+    HOLYDAY = read_holiday(ss)
     global COLOR_FINISH
     fl = read_color_cells(ss, 'Рабочая таблица №1!BV2:BV2')[0][0]
     COLOR_FINISH = (fl[0], fl[1])

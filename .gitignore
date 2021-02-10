@@ -132,3 +132,5 @@ dmypy.json
 creds.json
 setenv.sh
 .DS_Store
+*.cfg
+tmp*.py

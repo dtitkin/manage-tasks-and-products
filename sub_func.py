@@ -1,8 +1,6 @@
 from pprint import pprint
 from datetime import datetime, date
 
-HOLYDAY = []
-
 
 def now_str():
     now = datetime.now()

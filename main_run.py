@@ -7,11 +7,12 @@ from numpy import busday_offset, datetime_as_string  # busday_count,
 
 import Wrike
 import Spreadsheet
+# import Baselog
 from sub_func import now_str, progress, log, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
-VERSION = '0.51'
+VERSION = '0.52'
 HOLYDAY = []
 COLOR_FINISH = []
 
@@ -163,11 +164,15 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
                         fields=fields)
     # перебираем задачи и обновляем
     n = 0
+    pred_proc = 0
     len_sub = len(resp)
     for task in resp:
         n += 1
         percent = n / len_sub
         progress(percent)
+        if pred_proc + 1 == int(percent * 10):
+            pred_proc += 1
+            log_ss(ss, f"{pred_proc*10}%", f"BW{num_row}")
         # пользовательские поля
         resp_cf = task["customFields"]
         cfd["Номер этапа"] = find_cf(wr, resp_cf, "Номер этапа")
@@ -412,6 +417,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                 return False
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
+            log_ss(ss, "", f"BW{num_row}")
             ok = write_date_to_google(ss, wr, num_row, id_and_cfd[0])
             # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":

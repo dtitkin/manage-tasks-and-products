@@ -16,6 +16,10 @@ class Baselog():
         '''
         self.log = log
         self.cnx = None
+        self.id_logrow = None
+        self.id_user = None
+        self.name_user = None
+        self.email_user = None
         if log == "base" or log == "all":
             try:
                 self.cnx = mysql.connect(user=user, password=password,
@@ -36,10 +40,6 @@ class Baselog():
                                     "num_row={num_row}, "
                                     "message={message:s} "
                                     "WHERE id={id_row}")
-                self.id_logrow = None
-                self.id_user = None
-                self.name_user = None
-                self.email_user = None
             except mysql.Error as err:
                 if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                     print("Ошибка логина или пароля")
@@ -59,7 +59,7 @@ class Baselog():
 
     def add_user(self, name, email, token):
         if self.cnx is None:
-            return True
+            return False
         try:
             curs = self.cnx.cursor()
             data_user = {"name": name, "email": email, "token": token}
@@ -75,7 +75,7 @@ class Baselog():
         ''' id_user, runtime_error, error_type, num_row, message
         '''
         if self.cnx is None:
-            return True
+            return False
 
         date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         kwargs["date_time"] = date_time
@@ -94,7 +94,7 @@ class Baselog():
         '''runtime_error, error_type,message
         '''
         if self.cnx is None:
-            return True
+            return False
         date_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         kwargs["date_time"] = date_time
         for k, v in kwargs.items():
@@ -107,7 +107,6 @@ class Baselog():
         try:
             curs = self.cnx.cursor()
             curs.execute(run_str)
-            self.id_logrow = curs.lastrowid
             self.cnx.commit()
             curs.close()
             return True

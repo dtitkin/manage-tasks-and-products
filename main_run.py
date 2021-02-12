@@ -12,7 +12,7 @@ from sub_func import now_str, progress, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
-VERSION = '0.52'
+VERSION = '0.6'
 HOLYDAY = []
 COLOR_FINISH = []
 db = None  # объект для лога в базу или в терминал
@@ -354,15 +354,17 @@ def write_date_to_google(ss, wr, num_row, project_id):
 
 
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
-                              template_id, folder_id):
+                              template_id, folder_id, rp_filter, row_filter):
 
-    rp_filter = ""
     ss.sheetTitle = "Рабочая таблица №1"
     table_id = ss.values_get("F:AH")
     table_project = ss.values_get("BV:CF")
     num_row = 19
     for row_project in table_project[19:]:
         num_row += 1
+        if row_filter:
+            if row_filter != num_row:
+                continue
         if len(row_project) == 0:
             continue
         if len(table_id) < num_row:
@@ -408,7 +410,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
 
             if not ok:
                 # log("!Выполнение прервано!")
-                db.out("!Выполнение прервано",
+                db.out("!Выполнение прервано!",
                        num_row=num_row,
                        runtime_error="y", error_type="ошибка создания проекта")
 
@@ -429,7 +431,9 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                  personal_template)
             if not ok:
                 # log("!Выполнение прервано!")
-
+                db.out("!Выполнение прервано!",
+                       num_row=num_row,
+                       runtime_error="y", error_type="ошибка обновления задач")
                 return False
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
@@ -438,8 +442,9 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":
             # обновление дат в гугл и признака выполенно
-            m = f"Обновляем даты из Wrike #{num_row} {row_id[10]} {row_id[11]}"
-            log(m, True, False)
+            m = f"Обновляем даты из Wrike #{row_id[10]} {row_id[11]}"
+            # log(m, True, False)
+            db.out(m, num_row=num_row, prn_time=True)
             ok = write_date_to_google(ss, wr, num_row, row_id[1])
 
         elif row_project[0] == "A":
@@ -447,11 +452,15 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             id_project = row_id[1]
             if id_project:
                 m = f"Удаляем проект #{num_row} {row_id[10]} {row_id[11]}"
-                log(m, True, False)
+                # log(m, True, False)
+                db.out(m, num_row=num_row, prn_time=True)
                 ok = delete_product(ss, wr, id_project, num_row)
                 if not ok:
-                    m = f"Ошибка удаления #{num_row} {id_project}"
-                    log(m, True, False)
+                    m = f"Не удалось удалить проект {id_project}"
+                    # log(m, True, False)
+                    db.out(m,
+                           num_row=num_row,
+                           runtime_error="y", error_type="ошибка удаления")
 
 
 def main():
@@ -469,22 +478,29 @@ def main():
     HOST = cfg["log"]["host"]
     BASE = cfg["log"]["base"]
 
-
-
-
     # обрабатываем список аргументов
+    # 0 - сам скрипт
     # 1-й токен пользователя или admin для админа - логи только в терминал
-    # 2-й -pr
-    # 3-й читаем если есть -pr -  менеджер проекта по которому фильтр
+    # 1   help - помощь по параметрам запускаа
+    # 2-й -rp
+    # 3-й читаем если есть -rp -  менеджер проекта по которому фильтр
     # 4-й -n
     # 5-й читаем еслить есть -n номер строки котору обрабатывать
+    rp_filter = None
+    row_filter = None
     global db
     lst_argv = sys.argv
     if len(lst_argv) == 1:
-        print("Укажите токен пользователя")
+        print("Укажите токен пользователя или help")
         return
-    if len(lst_argv) > 1:
+    else:
         user_token = lst_argv[1]
+        if user_token == "help" or user_token == "-h":
+            print(" user_token или help или admin. Обязательный параметр")
+            print(" -rp <'имя менеджера проекта для фильтра'>."
+                  " Не обязательный.")
+            print(" -n <номер_строки для фильтра>. Не обязательный.")
+            return
         if user_token == "admin":
             OUT = "terminal"
             db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
@@ -496,7 +512,24 @@ def main():
             if not ok:
                 print("Пользователь по токену", user_token, " не найден")
                 return
-    db.out(f"Запуск скрипта верси {VERSION}", prn_time=True)
+    if len(lst_argv) >= 4:
+        key = lst_argv[2]
+        if key == "-rp":
+            rp_filter = lst_argv[3]
+        elif key == "-n":
+            row_filter = int(lst_argv[3])
+    if len(lst_argv) == 6:
+        key = lst_argv[4]
+        if key == "-rp":
+            rp_filter = lst_argv[5]
+        elif key == "-n":
+            row_filter = int(lst_argv[5])
+    if rp_filter:
+        db.out(f"Обрабатываем строки у РП {rp_filter}")
+    if row_filter:
+        db.out(f"Обрабатываем строкe #{row_filter}")
+    if db.log == "terminal":
+        db.out(f"Запуск скрипта верси {VERSION}", prn_time=True)
     db.out("Приосоединяемся к Гугл")
     ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
     ss.set_spreadsheet_byid(TABLE_ID)
@@ -531,7 +564,7 @@ def main():
 
     db.out("Выгрузка проектов из Гугл во Wrike", prn_time=True)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
-                              template_id, parent_id)
+                              template_id, parent_id, rp_filter, row_filter)
 
     t_finish = time.time()
     db.out(f"Выполненно за: {int(t_finish - t_start)} секунд")

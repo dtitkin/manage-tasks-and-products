@@ -66,12 +66,9 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     cf = wr.custom_field_arr(cfd)
     resp_project = resp[0]["project"]
     ownerIds = resp_project["ownerIds"]
-    if ownerIds == id_manager:
-        pr = None
-    else:
-        pr = {"ownersAdd": [id_manager]}
-        if ownerIds:
-            pr["ownersRemove"] = ownerIds
+    pr = {"ownersAdd": [id_manager]}
+    if ownerIds and ownerIds != id_manager:
+        pr["ownersRemove"] = ownerIds
     resp = wr.update_folder(id_project, customFields=cf, project=pr)
     # сохраним в таблице ID
     log_ss(ss, id_project, f"G{num_row}")

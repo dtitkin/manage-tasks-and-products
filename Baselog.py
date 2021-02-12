@@ -8,7 +8,7 @@ from mysql.connector import errorcode
 
 class Baselog():
     def __init__(self, user, password, host, database, log="all",
-                 debugMode=False):
+                 debugMode=False, admin_mode=False):
         ''' выводит лог на экран        - log = "terminal"
                         в базу данных   - log = "base"
                         в оба канала    - log = "all"
@@ -20,6 +20,7 @@ class Baselog():
         self.id_user = None
         self.name_user = None
         self.email_user = None
+        self.admin_mode = admin_mode
         if log == "base" or log == "all":
             try:
                 self.cnx = mysql.connect(user=user, password=password,
@@ -134,7 +135,7 @@ class Baselog():
                 print(num_row_str, msg, error_type)
 
         id_user = self.id_user
-        if id_user is None:
+        if id_user is None and not self.admin_mode:
             print("Не установлен пользователь")
             return False
         if self.log == "all" or self.log == "terminal":

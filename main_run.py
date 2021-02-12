@@ -503,7 +503,7 @@ def main():
             return
         if user_token == "admin":
             OUT = "terminal"
-            db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
+            db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT, admin_mode=True)
         else:
             db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
             if not db.is_connected():

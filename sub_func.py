@@ -17,19 +17,19 @@ def progress(percent=0, width=30):
           sep='', end='', flush=True)
 
 
-def log(msg, prn_time=False, one_str=False):
-    str_now = now_str()
-    if prn_time:
-        print(str_now, end=" ")
-        if one_str:
-            print('\r', msg, sep='', end='', flush=True)
-        else:
-            pprint(msg)
-    else:
-        if one_str:
-            print('\r', msg, sep='', end='', flush=True)
-        else:
-            pprint(msg)
+# def log(msg, prn_time=False, one_str=False):
+#    str_now = now_str()
+#    if prn_time:
+#        print(str_now, end=" ")
+#        if one_str:
+#            print('\r', msg, sep='', end='', flush=True)
+#       else:
+#            pprint(msg)
+#    else:
+#        if one_str:
+#            print('\r', msg, sep='', end='', flush=True)
+#        else:
+#            pprint(msg)
 
 
 def log_ss(ss, msg, cells_range):

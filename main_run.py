@@ -7,14 +7,15 @@ from numpy import busday_offset, datetime_as_string  # busday_count,
 
 import Wrike
 import Spreadsheet
-# import Baselog
-from sub_func import now_str, progress, log, log_ss, make_date, read_holiday
+import Baselog
+from sub_func import now_str, progress, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
 VERSION = '0.52'
 HOLYDAY = []
 COLOR_FINISH = []
+db = None  # объект для лога в базу или в терминал
 
 
 def chek_old_session(ss, wr):
@@ -211,7 +212,8 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
                                   addResponsibles=add_r_bles,
                                   customFields=cf, status=status, dates=dt)
         if len(resp_upd) == 0:
-            log(task["id"] + " ошибка обновления")
+            db.out(task["id"] + " ошибка обновления", num_row=num_row,
+                   runtime_error="y", error_type="обновление задачи")
             break
     else:
         print()
@@ -269,19 +271,25 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
     ok = True
     if len(row_id[11]) == 0:
         ok = False
-        log(f"{num_row} нет названия продукта")
+        # log(f"{num_row} нет названия продукта")
+        db.out("нет названия продукта", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
     # руководитель проекта
     id_user = users_from_name.get(row_id[4])
     if not id_user or not id_user.get("id"):
         ok = False
         rp = row_id[4]
-        log(f"{num_row} руководителя проекта {rp} нет во Wrike")
+        # log(f"{num_row} руководителя проекта {rp} нет во Wrike")
+        db.out(f"руководителя проекта {rp} нет во Wrike", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
     # технолог
     id_user = users_from_name.get(row_id[5])
     if not id_user or not id_user.get("id"):
         ok = False
         rp = row_id[5]
-        log(f"{num_row} технолог {rp} нет во Wrike")
+        # log(f"{num_row} технолог {rp} нет во Wrike")
+        db.out(f"технолог {rp} нет во Wrike", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
     in_all = True
     if len(row_project) < 10:
         in_all = False
@@ -291,7 +299,9 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
                 in_all = False
     if not in_all:
         ok = False
-        log(f"{num_row} не установленны даты этапов")
+        # log(f"{num_row} не установленны даты этапов")
+        db.out("не установленны даты этапов", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
 
     return ok
 
@@ -346,11 +356,7 @@ def write_date_to_google(ss, wr, num_row, project_id):
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, folder_id):
 
-    lst_argv = sys.argv
     rp_filter = ""
-    if len(lst_argv) > 1:
-        rp_filter = lst_argv[1]
-        log(f"Обрабатываем строки РП {rp_filter}")
     ss.sheetTitle = "Рабочая таблица №1"
     table_id = ss.values_get("F:AH")
     table_project = ss.values_get("BV:CF")
@@ -372,8 +378,9 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                    users_from_id)
             if not ok:
                 continue
-            m = f"Создаем продукт #{num_row} {row_id[10]} {row_id[11]}"
-            log(m, True, False)
+            m = f"Создаем продукт #{row_id[10]} {row_id[11]}"
+            # log(m, True, False)
+            db.out(m, num_row=num_row, prn_time=True)
             #  определяем дату для старта проекта
             date_start = read_date_for_project(ss, row_project[2])
             # найдем персональный шаблон
@@ -384,21 +391,32 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                     ss.sheetTitle = "Рабочая таблица №1"
                     personal_template = ss.values_get(f"G{nrt}:G{nrt}")[0][0]
                     if not personal_template:
-                        log(f"Для {num_row} в строке {nrt} нет шаблона.")
-                        log(f"Строка  {num_row} не обрабатывается.")
+                        # log(f"Для {num_row} в строке {nrt} нет шаблона.")
+                        # log(f"Строка  {num_row} не обрабатывается.")
+                        db.out(f"в строке {nrt} нет шаблона",
+                               num_row=num_row,
+                               runtime_error="y", error_type="ошибка шаблона")
+
                         continue
-                    log(f"   используем шаблон из строки {nrt}")
+                    # log(f"   используем шаблон из строки {nrt}")
+                    m = f"используем шаблон из строки {nrt}"
+                    db.out(m, num_row=num_row)
             #  создаем новый проект
             id_and_cfd, ok = new_product(ss, wr, row_id, num_row, template_id,
                                          folder_id, users_from_name,
                                          date_start, personal_template)
 
             if not ok:
-                log("!Выполнение прервано!")
+                # log("!Выполнение прервано!")
+                db.out("!Выполнение прервано",
+                       num_row=num_row,
+                       runtime_error="y", error_type="ошибка создания проекта")
+
                 return False
             # установим исполнителей, пользовательские поля,
             # признак выполненно, перенесем вехи на нужные даты
-            log("   Обновление задач в проекте")
+            # log("   Обновление задач в проекте")
+            db.out("Обновление задач в проекте", num_row=num_row)
 
             # считываем статусы и даты этапов из таблицы
             finish_status, dates_stage = read_stage_info(ss, wr, num_row,
@@ -410,7 +428,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                  num_row, finish_status, dates_stage,
                                  personal_template)
             if not ok:
-                log("!Выполнение прервано!")
+                # log("!Выполнение прервано!")
+
                 return False
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
@@ -444,9 +463,41 @@ def main():
     cfg.read('settings.cfg')
     TABLE_ID = cfg["spreadsheet"]["gogletableid"]
     TOKEN = cfg["wrike"]["wriketoken"]
+    OUT = cfg["log"]["out"]
+    NAME = cfg["log"]["name"]
+    PASS = cfg["log"]["pass"]
+    HOST = cfg["log"]["host"]
+    BASE = cfg["log"]["base"]
 
-    log(f"Запуск скрипта верси {VERSION}", True, False)
-    log("Приосоединяемся к Гугл")
+
+
+
+    # обрабатываем список аргументов
+    # 1-й токен пользователя или admin для админа - логи только в терминал
+    # 2-й -pr
+    # 3-й читаем если есть -pr -  менеджер проекта по которому фильтр
+    # 4-й -n
+    # 5-й читаем еслить есть -n номер строки котору обрабатывать
+    global db
+    lst_argv = sys.argv
+    if len(lst_argv) == 1:
+        print("Укажите токен пользователя")
+        return
+    if len(lst_argv) > 1:
+        user_token = lst_argv[1]
+        if user_token == "admin":
+            OUT = "terminal"
+            db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
+        else:
+            db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
+            if not db.is_connected():
+                return
+            ok = db.get_user(user_token)
+            if not ok:
+                print("Пользователь по токену", user_token, " не найден")
+                return
+    db.out(f"Запуск скрипта верси {VERSION}", prn_time=True)
+    db.out("Приосоединяемся к Гугл")
     ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
     ss.set_spreadsheet_byid(TABLE_ID)
     global HOLYDAY
@@ -454,36 +505,36 @@ def main():
     global COLOR_FINISH
     fl = read_color_cells(ss, 'Рабочая таблица №1!BV2:BV2')[0][0]
     COLOR_FINISH = (fl[0], fl[1])
-    log("Приосоединяемся к Wrike")
+    db.out("Приосоединяемся к Wrike")
     wr = Wrike.Wrike(TOKEN)
 
-    log("Получить id шаблонoв")
+    db.out("Получить id шаблонoв")
     permalink = "https://www.wrike.com/open.htm?id=637661621"
     #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
     template = wr.get_folders("folders", permalink=permalink)[0]
     template_id = template["id"]
     template_title = template["title"]
-    log(f"ID шаблона {template_title} {template_id}")
+    db.out(f"ID шаблона {template_title} {template_id}")
 
     permalink = "https://www.wrike.com/open.htm?id=632246796"
     # 000 НОВЫЕ ПРОДУКТЫ
     parent = wr.get_folders("folders", permalink=permalink)[0]
     parent_id = parent["id"]
     parent_title = parent["title"]
-    log(f"ID папки  {parent_title} {parent_id}")
+    db.out(f"ID папки  {parent_title} {parent_id}")
 
-    log("Получить ID, email  пользователей")
+    db.out("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)
 
-    log("Проверка и отчистка результатов предыдущих сессий", True, False)
+    db.out("Проверка и отчистка результатов предыдущих сессий", prn_time=True)
     chek_old_session(ss, wr)
 
-    log("Выгрузка проектов из Гугл во Wrike", True, False)
+    db.out("Выгрузка проектов из Гугл во Wrike", prn_time=True)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                               template_id, parent_id)
 
     t_finish = time.time()
-    log(f"Выполненно за: {int(t_finish - t_start)} секунд")
+    db.out(f"Выполненно за: {int(t_finish - t_start)} секунд")
 
 
 if __name__ == '__main__':

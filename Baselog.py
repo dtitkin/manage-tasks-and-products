@@ -21,7 +21,8 @@ class Baselog():
         self.name_user = None
         self.email_user = None
         self.admin_mode = admin_mode
-        if log == "base" or log == "all":
+        self.rp_filter = None
+        if not admin_mode:
             try:
                 self.cnx = mysql.connect(user=user, password=password,
                                          host=host, database=database)
@@ -53,6 +54,8 @@ class Baselog():
         self.cnx.close()
 
     def is_connected(self):
+        if self.log == "terminal":
+            return True
         if self.cnx is not None:
             return self.cnx.is_connected()
         else:
@@ -165,6 +168,7 @@ class Baselog():
             self.id_user = rows[0]
             self.name_user = rows[1]
             self.email_user = rows[2]
+            self.rp_filter = rows[4]
             return True
 
 

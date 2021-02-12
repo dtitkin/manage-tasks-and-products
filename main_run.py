@@ -167,7 +167,8 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
     for task in resp:
         n += 1
         percent = n / len_sub
-        progress(percent)
+        if db.log == "all" or db.log == "terminal":
+            progress(percent)
         if pred_proc + 1 == int(percent * 10):
             pred_proc += 1
             log_ss(ss, f"{pred_proc*10}%", f"BW{num_row}")
@@ -507,6 +508,7 @@ def main():
         else:
             db = Baselog.Baselog(NAME, PASS, HOST, BASE, OUT)
             if not db.is_connected():
+                print("Нет коннекта к базе с логом")
                 return
             ok = db.get_user(user_token)
             if not ok:
@@ -524,10 +526,12 @@ def main():
             rp_filter = lst_argv[5]
         elif key == "-n":
             row_filter = int(lst_argv[5])
+    if db.rp_filter and rp_filter is None:
+        rp_filter = db.rp_filter
     if rp_filter:
         db.out(f"Обрабатываем строки у РП {rp_filter}")
     if row_filter:
-        db.out(f"Обрабатываем строкe #{row_filter}")
+        db.out(f"Обрабатываем строку #{row_filter}")
     if db.log == "terminal":
         db.out(f"Запуск скрипта верси {VERSION}", prn_time=True)
     db.out("Приосоединяемся к Гугл")

@@ -18,10 +18,18 @@ COLOR_FINISH = []
 db = None  # объект для лога в базу или в терминал
 
 
-def chek_old_session(ss, wr):
-    '''Проверяем не заавершенные результаты предыдущей сессии
-    '''
-    pass
+def chek_old_session(ss, wr, row_id, num_row):
+    '''Проверяем не завершенные результаты предыдущей сессии
+    new product:
+    Del project:
+    update sub task: '''
+
+    if row_id[0] == "new product:":
+        pass
+    elif row_id[0] == "Del project:":
+        pass
+    elif row_id[0] == "update sub task:":
+        pass
 
 
 def new_product(ss, wr, row_id, num_row, template_id, folder_id,
@@ -137,10 +145,10 @@ def delete_product(ss, wr, id_project, num_row):
     ''' удаляем весь проект и стираем его ID
 
     '''
-    log_ss(ss, "Del  project:", f"F{num_row}")
+    log_ss(ss, "Del project:", f"F{num_row}")
     resp = wr.rs_del(f"folders/{id_project}")
     if resp:
-        log_ss(ss, "Finish Del:" + now_str(), f"F{num_row}")
+        log_ss(ss, "Finish Del project:" + now_str(), f"F{num_row}")
         log_ss(ss, "", f"G{num_row}")
         log_ss(ss, "", f"BV{num_row}")
         return True
@@ -375,6 +383,10 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
         if rp_filter:
             if row_id[4] != rp_filter:
                 continue
+
+        db.out("Проверка и отчистка результатов предыдущих сессий",
+               prn_time=True)
+        chek_old_session(ss, wr, row_id, num_row)
         if row_project[0] == "G":
             ok = test_all_parametr(row_project,
                                    row_id, num_row, users_from_name,
@@ -562,9 +574,6 @@ def main():
 
     db.out("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)
-
-    db.out("Проверка и отчистка результатов предыдущих сессий", prn_time=True)
-    chek_old_session(ss, wr)
 
     db.out("Выгрузка проектов из Гугл во Wrike", prn_time=True)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,

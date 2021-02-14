@@ -145,10 +145,15 @@ class Baselog():
             terminal_log(msg, num_row, prn_time, one_str)
             rt = True
         if self.log == "all" or self.log == "base":
-            if not self.id_logrow:
+            if not self.id_logrow or runtime_error == "y":
                 rt = self.add_log(id_user=id_user, runtime_error=runtime_error,
                                   error_type=error_type, num_row=num_row,
                                   message=msg)
+                if runtime_error == "y":
+                    # добавим новую пустую строку для слудующих записей в лог
+                    rt = self.add_log(id_user=id_user, runtime_error="",
+                                      error_type="", num_row=num_row,
+                                      message="продолжение лога")
             else:
                 rt = self.update_log(runtime_error="", error_type=error_type,
                                      num_row=num_row, message=msg)

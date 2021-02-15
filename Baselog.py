@@ -144,6 +144,7 @@ class Baselog():
         if self.log == "all" or self.log == "terminal":
             terminal_log(msg, num_row, prn_time, one_str)
             rt = True
+        msg = msg[:100]
         if self.log == "all" or self.log == "base":
             if not self.id_logrow or runtime_error == "y":
                 rt = self.add_log(id_user=id_user, runtime_error=runtime_error,

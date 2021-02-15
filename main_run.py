@@ -264,6 +264,7 @@ def set_color_W(ss, num_row, finish_status):
         ss.prepare_setcells_format(cl, bg_colr,
                                    fields="userEnteredFormat.backgroundColor")
 
+        time.sleep(1)
         ss.run_prepared()
 
 
@@ -362,6 +363,7 @@ def write_date_to_google(ss, wr, num_row, project_id):
         txt_color = {"textFormat": {"foregroundColor": color_font}}
         ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
         ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
+    time.sleep(1)
     ss.run_prepared()
     return True
 
@@ -459,7 +461,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":
             # обновление дат в гугл и признака выполенно
-            m = f"Обновляем даты из Wrike #{row_id[10]} {row_id[11]}"
+            m = f"Обновляем даты #{row_id[10]} {row_id[11]}"
             # log(m, True, False)
             db.out(m, num_row=num_row, prn_time=True)
             ok = write_date_to_google(ss, wr, num_row, row_id[1])

@@ -1,5 +1,6 @@
 
 from datetime import datetime, date
+import time
 
 
 def now_str():
@@ -36,6 +37,7 @@ def log_ss(ss, msg, cells_range):
     value = [[msg]]
     my_range = f"{cells_range}:{cells_range}"
     ss.prepare_setvalues(my_range, value)
+    time.sleep(1)
     ss.run_prepared()
 
 

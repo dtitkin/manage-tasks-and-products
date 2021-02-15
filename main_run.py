@@ -278,6 +278,10 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
         - ????
     '''
     ok = True
+    if len(row_id[1]) != 0:
+        ok = False
+        db.out("Проект уже выгружен во Wrike", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
     if len(row_id[11]) == 0:
         ok = False
         # log(f"{num_row} нет названия продукта")

@@ -76,7 +76,7 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     resp_project = resp[0]["project"]
     ownerIds = resp_project["ownerIds"]
     pr = {"ownersAdd": [id_manager]}
-    if ownerIds and ownerIds != id_manager:
+    if ownerIds and ownerIds[0] != id_manager:
         pr["ownersRemove"] = ownerIds
     resp = wr.update_folder(id_project, customFields=cf, project=pr)
     # сохраним в таблице ID
@@ -386,6 +386,10 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             row_id = ["" for x in range(0, 29)]
         else:
             row_id = table_id[num_row - 1]
+        if len(row_id) < 29:
+            plus_len = 29 - len(row_id)
+            tmp_lst = ["" for x in range(0, plus_len)]
+            row_id.extend(tmp_lst)
         if rp_filter:
             if row_id[4] != rp_filter:
                 continue
@@ -546,12 +550,12 @@ def main():
             row_filter = int(lst_argv[5])
     if db.rp_filter and rp_filter is None:
         rp_filter = db.rp_filter
+    if db.log == "terminal":
+        db.out(f"Запуск скрипта версии {VERSION}", prn_time=True)
     if rp_filter:
         db.out(f"Обрабатываем строки у РП {rp_filter}")
     if row_filter:
         db.out(f"Обрабатываем строку #{row_filter}")
-    if db.log == "terminal":
-        db.out(f"Запуск скрипта верси {VERSION}", prn_time=True)
     db.out("Приосоединяемся к Гугл")
     ss = Spreadsheet.Spreadsheet(CREDENTIALS_FILE)
     ss.set_spreadsheet_byid(TABLE_ID)

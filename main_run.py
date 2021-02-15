@@ -12,7 +12,7 @@ from sub_func import now_str, progress, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
-VERSION = '0.61'
+VERSION = '0.8'
 HOLYDAY = []
 COLOR_FINISH = []
 db = None  # объект для лога в базу или в терминал
@@ -33,7 +33,7 @@ def chek_old_session(ss, wr, row_id, num_row):
 
 
 def new_product(ss, wr, row_id, num_row, template_id, folder_id,
-                users_from_name, date_start, personal_template):
+                users_from_name, date_start, personal_template, folders):
     ''' По признаку G в строке продукта создаем новый проект во Wrike
     '''
     # обозначим в гугл таблице начало работы
@@ -55,6 +55,13 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
            "Клиент": row_id[27],
            "Бренд": row_id[28]}
 
+    tmp_name = row_id[3]
+    if len(tmp_name) > 0:
+        tmp_name = tmp_name.strip(" ")
+    my_folder = folders.get(tmp_name)
+    if my_folder:
+        folder_id = my_folder
+
     if personal_template:
         id_template = personal_template
     else:
@@ -71,7 +78,7 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
                               copyResponsibles="true")
     id_project = resp[0]["id"]
     id_manager = users_from_name[row_id[4]]["id"]
-
+    permalink = resp[0]["permalink"]
     cf = wr.custom_field_arr(cfd)
     resp_project = resp[0]["project"]
     ownerIds = resp_project["ownerIds"]
@@ -80,10 +87,11 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
         pr["ownersRemove"] = ownerIds
     resp = wr.update_folder(id_project, customFields=cf, project=pr)
     # сохраним в таблице ID
-    log_ss(ss, id_project, f"G{num_row}")
+    log_ss(ss, id_project, f"G{num_row}", False)
 
     # обзначим в гугл таблице завершение работы
     log_ss(ss, "Finish new product:" + now_str(), f"F{num_row}")
+    log_ss(ss, permalink, f"BW{num_row}")
     ok = True
     return (id_project, cfd), ok  # id созданного проекта , заполненные поля
 
@@ -148,8 +156,8 @@ def delete_product(ss, wr, id_project, num_row):
     log_ss(ss, "Del project:", f"F{num_row}")
     resp = wr.rs_del(f"folders/{id_project}")
     if resp:
-        log_ss(ss, "Finish Del project:" + now_str(), f"F{num_row}")
-        log_ss(ss, "", f"G{num_row}")
+        log_ss(ss, "Finish Del project:" + now_str(), f"F{num_row}", False)
+        log_ss(ss, "", f"G{num_row}", False)
         log_ss(ss, "", f"BV{num_row}")
         return True
     else:
@@ -179,7 +187,7 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
             progress(percent)
         if pred_proc + 1 == int(percent * 10):
             pred_proc += 1
-            log_ss(ss, f"{pred_proc*10}%", f"BW{num_row}")
+            log_ss(ss, f"{num_row}:{pred_proc*10}%", f"BW18", True, 0)
         # пользовательские поля
         resp_cf = task["customFields"]
         cfd["Номер этапа"] = find_cf(wr, resp_cf, "Номер этапа")
@@ -225,7 +233,7 @@ def update_sub_task(ss, wr, parent_id, cfd, users_from_id, users_from_name,
                    runtime_error="y", error_type="обновление задачи")
             break
     else:
-        print()
+        # print()
         #  если обработали все задачи обозначим в таблице выполнение
         log_ss(ss, "Finish update sub task:" + now_str(), f"F{num_row}")
         return True
@@ -363,15 +371,56 @@ def write_date_to_google(ss, wr, num_row, project_id):
         txt_color = {"textFormat": {"foregroundColor": color_font}}
         ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
         ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
-    time.sleep(1)
+    # time.sleep(0.5)
     ss.run_prepared()
     return True
 
 
+def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders):
+    ''' проверяем поля у папки, меняем размещение в паапке проект
+    '''
+    id_project = row_id[1]
+    if not id_project:
+        db.out(f"нет ID проекта", num_row=num_row,
+               untime_error="y", error_type="ошибка данных Google")
+        return False
+    name_project = row_id[3]
+    if len(name_project) > 0:
+        name_project.strip(" ")
+    my_folder = folders.get(name_project)
+    resp = wr.get_folders(f"folders/{id_project}")
+    if len(resp) > 0:
+        my_parents = resp[0]["parentIds"]
+        addParents = None
+        removeParents = None
+
+        if my_folder and my_folder not in my_parents:
+            addParents = [my_folder]
+        if parent_id in my_parents:
+            removeParents = [parent_id]
+        if addParents or removeParents:
+            resp = wr.update_folder(id_project, addParents=addParents,
+                                    removeParents=removeParents)
+            if len(resp) > 0:
+                return True
+            else:
+                db.out(f"не обновляется папка {id_project}", num_row=num_row,
+                       runtime_error="y", error_type="ошибка чтения Wrike")
+                return False
+        else:
+            return True
+    else:
+        db.out(f"не читается папка {id_project}", num_row=num_row,
+               runtime_error="y", error_type="ошибка чтения Wrike")
+        return False
+
+
 def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
-                              template_id, folder_id, rp_filter, row_filter):
+                              template_id, folder_id, rp_filter, row_filter,
+                              folders):
 
     ss.sheetTitle = "Рабочая таблица №1"
+    ss.sheetId = 1375512515
     table_id = ss.values_get("F:AH")
     table_project = ss.values_get("BV:CF")
     num_row = 19
@@ -404,6 +453,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             if not ok:
                 continue
             m = f"Создаем продукт #{row_id[10]} {row_id[11]}"
+            log_ss(ss, m, "BW5", True, 0)
             # log(m, True, False)
             db.out(m, num_row=num_row, prn_time=True)
             #  определяем дату для старта проекта
@@ -429,7 +479,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             #  создаем новый проект
             id_and_cfd, ok = new_product(ss, wr, row_id, num_row, template_id,
                                          folder_id, users_from_name,
-                                         date_start, personal_template)
+                                         date_start, personal_template,
+                                         folders)
 
             if not ok:
                 # log("!Выполнение прервано!")
@@ -460,21 +511,25 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                 return False
             # Устанавливаем в таблицу W  вместо G
             log_ss(ss, "W", f"BV{num_row}")
-            log_ss(ss, "", f"BW{num_row}")
             ok = write_date_to_google(ss, wr, num_row, id_and_cfd[0])
             # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":
             # обновление дат в гугл и признака выполенно
-            m = f"Обновляем даты #{row_id[10]} {row_id[11]}"
+            m = f"Обновляем даты #{num_row} {row_id[10]} {row_id[11]}"
+            log_ss(ss, m, "BW5")
             # log(m, True, False)
             db.out(m, num_row=num_row, prn_time=True)
             ok = write_date_to_google(ss, wr, num_row, row_id[1])
+            m = f"Проверяем тексты и папку #{row_id[10]} {row_id[11]}"
+            db.out(m, num_row=num_row, prn_time=True)
+            ok = if_edit_folder(ss, wr, num_row, row_id, folder_id, folders)
 
         elif row_project[0] == "A":
             # удаляем проект из Wrike если он там есть
             id_project = row_id[1]
             if id_project:
                 m = f"Удаляем проект #{num_row} {row_id[10]} {row_id[11]}"
+                log_ss(ss, m, "BW5")
                 # log(m, True, False)
                 db.out(m, num_row=num_row, prn_time=True)
                 ok = delete_product(ss, wr, id_project, num_row)
@@ -484,6 +539,64 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                     db.out(m,
                            num_row=num_row,
                            runtime_error="y", error_type="ошибка удаления")
+
+
+def create_folder_in_parent(ss, wr, parent_id, row_filter):
+    ''' создает папки по проектам, считывает их ID
+    '''
+    filter_project = None
+    if row_filter:
+        ss.sheetTitle = "Рабочая таблица №1"
+        table = ss.values_get(f"I{row_filter}:I{row_filter}")
+        if len(table) > 0:
+            filter_project = table[0][0]
+
+    ss.sheetTitle = "Проекты"
+    ss.sheetId = 682440301
+    table = ss.values_get("B30:E200")
+    num_str = 29
+    return_dict = {}
+    for project in table:
+        num_str += 1
+        if len(project) == 0:
+            continue
+        wrike_link = ""
+        name_project = project[0]
+        if row_filter and filter_project != name_project:
+            continue
+        if len(name_project) > 0:
+            name_project = name_project.strip(" ")
+        if len(project) == 4:
+            wrike_link = project[3]
+        if wrike_link:
+            resp = wr.get_folders("folders", permalink=wrike_link)
+            if len(resp) == 0:
+                db.out(f"нет папки во wrike {name_project} {wrike_link}",
+                       num_row=num_str,
+                       runtime_error="y", error_type="создание папки")
+                wrike_link = ""
+            else:
+                if resp[0]["title"] != name_project.upper():
+                    # обновим имя папки во Wrike
+                    resp = wr.update_folder(resp[0]["id"],
+                                            title=name_project.upper())
+                    if len(resp) == 0:
+                        db.out(f"не обновли папку {name_project}",
+                               num_row=num_str,
+                               runtime_error="y", error_type="создание папки")
+                return_dict[name_project] = resp[0]["id"]
+        if not wrike_link:
+            db.out(f"Создаем папку для проекта #{num_str} {name_project}")
+            resp = wr.create_folder(parent_id, name_project.upper())
+            if len(resp) == 0:
+                db.out(f"не создали папку {name_project}", num_row=num_str,
+                       runtime_error="y", error_type="создание папки")
+                continue
+            else:
+                return_dict[name_project] = resp[0]["id"]
+                log_ss(ss, resp[0]["permalink"], f"E{num_str}")
+
+    return return_dict
 
 
 def main():
@@ -568,8 +681,8 @@ def main():
     wr = Wrike.Wrike(TOKEN)
 
     db.out("Получить id шаблонoв")
-    permalink = "https://www.wrike.com/open.htm?id=637661621"
-    #  "#1 1CКОД РАБОЧЕЕ НАЗВАНИЕ"
+    permalink = "https://www.wrike.com/open.htm?id=642820415"
+    #  ОСНОВНОЙ ПРОТОТИП В ПАПКЕ ПРОТОТИПОВ
     template = wr.get_folders("folders", permalink=permalink)[0]
     template_id = template["id"]
     template_title = template["title"]
@@ -584,13 +697,21 @@ def main():
 
     db.out("Получить ID, email  пользователей")
     users_from_name, users_from_id = get_user(ss, wr)
+    ss.sheetTitle = "Рабочая таблица №1"
+    ss.sheetId = 1375512515
+    log_ss(ss, "Обновление началось " + now_str(), "BW5")
+    db.out("Создание папок к проектам")
+    folders = create_folder_in_parent(ss, wr, parent_id, row_filter)
 
     db.out("Выгрузка проектов из Гугл во Wrike", prn_time=True)
     load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
-                              template_id, parent_id, rp_filter, row_filter)
+                              template_id, parent_id, rp_filter, row_filter,
+                              folders)
 
     t_finish = time.time()
-    db.out(f"Выполненно за: {int(t_finish - t_start)} секунд")
+    m = f"Выполненно за: {int(t_finish - t_start)} с. {now_str()}"
+    db.out(m)
+    log_ss(ss, m, "BW5")
 
 
 if __name__ == '__main__':

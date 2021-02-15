@@ -174,6 +174,16 @@ class Wrike():
         resp = self.rs_put(f"tasks/{taskid}", **task_dates)
         return resp
 
+    def create_folder(self, folderid, title, description=None,
+                      shareds=None, project=None, fields=None):
+        '''Создать папку
+
+        '''
+        folder_dates = self.make_params(locals(),
+                                        ["self", "folderid", "folder_dates"])
+        resp = self.rs_post(f"folders/{folderid}/folders", **folder_dates)
+        return resp
+
     def get_folders(self, folderarea, permalink=None, descendants=None,
                     customField=None, updatedDate=None, project=None,
                     deleted=None, fields=None):

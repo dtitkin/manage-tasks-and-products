@@ -33,12 +33,13 @@ def progress(percent=0, width=30):
 #            pprint(msg)
 
 
-def log_ss(ss, msg, cells_range):
+def log_ss(ss, msg, cells_range, save=True, timeout=1):
     value = [[msg]]
     my_range = f"{cells_range}:{cells_range}"
     ss.prepare_setvalues(my_range, value)
-    time.sleep(1)
-    ss.run_prepared()
+    if save:
+        time.sleep(timeout)
+        ss.run_prepared()
 
 
 def make_date(usr_date):

@@ -390,8 +390,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             if row_id[4] != rp_filter:
                 continue
 
-        db.out("Проверка и отчистка результатов предыдущих сессий",
-               prn_time=True)
+        # db.out("Проверка и отчистка результатов предыдущих сессий",
+        #        prn_time=True)
         chek_old_session(ss, wr, row_id, num_row)
         if row_project[0] == "G":
             ok = test_all_parametr(row_project,

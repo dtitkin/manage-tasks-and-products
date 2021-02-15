@@ -46,8 +46,10 @@ def make_date(usr_date):
         return date.today()
     if usr_date.find(".") > -1:
         lst_date = usr_date[0:10].split(".")
-    else:
+    elif usr_date.find("/") > -1:
         lst_date = usr_date[0:10].split("/")
+    else:
+        return date.today()
     return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
 
 

@@ -12,7 +12,7 @@ from sub_func import now_str, progress, log_ss, make_date, read_holiday
 from sub_func import read_color_cells, read_stage_info, get_user
 from sub_func import find_cf, get_len_stage
 
-VERSION = '0.6'
+VERSION = '0.61'
 HOLYDAY = []
 COLOR_FINISH = []
 db = None  # объект для лога в базу или в терминал

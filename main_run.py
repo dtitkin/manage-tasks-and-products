@@ -50,6 +50,7 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
            "Технолог": row_id[5],
            "Код-1С": row_id[10],
            "Название рабочее": row_id[11],
+           "Технология": row_id[20],
            "Группа": row_id[21],
            "Линейка": row_id[12],
            "Клиент": row_id[27],
@@ -376,7 +377,7 @@ def write_date_to_google(ss, wr, num_row, project_id):
     return True
 
 
-def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders):
+def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink):
     ''' проверяем поля у папки, меняем размещение в паапке проект
     '''
     id_project = row_id[1]
@@ -391,6 +392,9 @@ def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders):
     resp = wr.get_folders(f"folders/{id_project}")
     if len(resp) > 0:
         my_parents = resp[0]["parentIds"]
+        permalink = resp[0]["permalink"]
+        if permalink != ss_permalink:
+            log_ss(ss, permalink, f"BW{num_row}")
         addParents = None
         removeParents = None
 
@@ -522,7 +526,8 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             ok = write_date_to_google(ss, wr, num_row, row_id[1])
             m = f"Проверяем тексты и папку #{row_id[10]} {row_id[11]}"
             db.out(m, num_row=num_row, prn_time=True)
-            ok = if_edit_folder(ss, wr, num_row, row_id, folder_id, folders)
+            ok = if_edit_folder(ss, wr, num_row, row_id, folder_id, folders,
+                                row_project[1])
 
         elif row_project[0] == "A":
             # удаляем проект из Wrike если он там есть

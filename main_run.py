@@ -2,6 +2,7 @@
 import time
 import configparser
 import sys
+from zlib import adler32
 
 from numpy import busday_offset, datetime_as_string  # busday_count,
 
@@ -9,7 +10,7 @@ import Wrike
 import Spreadsheet
 import Baselog
 from sub_func import now_str, progress, log_ss, make_date, read_holiday
-from sub_func import read_color_cells, read_stage_info, get_user
+from sub_func import read_color_cells, read_stage_info, get_user_list
 from sub_func import find_cf, get_len_stage
 
 VERSION = '0.8'
@@ -24,11 +25,11 @@ def chek_old_session(ss, wr, row_id, num_row):
     Del project:
     update sub task: '''
 
-    if row_id[0] == "new product:":
+    if row_id[1] == "new product:":
         pass
-    elif row_id[0] == "Del project:":
+    elif row_id[1] == "Del project:":
         pass
-    elif row_id[0] == "update sub task:":
+    elif row_id[1] == "update sub task:":
         pass
 
 
@@ -39,24 +40,28 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     # обозначим в гугл таблице начало работы
     log_ss(ss, "new product:", f"F{num_row}")
     # копируем шаблон в новый проект
-    name_stage = row_id[10] + " " + row_id[11]
+    name_stage = row_id[11] + " " + row_id[12]
 
     cfd = {"Номер этапа": "",
            "Номер задачи": "",
            "Норматив часы": 0,
-           "Стратегическая группа": row_id[2],
-           "Проект": row_id[3],
-           "Руководитель проекта": row_id[4],
-           "Технолог": row_id[5],
-           "Код-1С": row_id[10],
-           "Название рабочее": row_id[11],
-           "Технология": row_id[20],
-           "Группа": row_id[21],
-           "Линейка": row_id[12],
-           "Клиент": row_id[27],
-           "Бренд": row_id[28]}
+           "Стратегическая группа": row_id[3],
+           "Проект": row_id[4],
+           "Руководитель проекта": row_id[5],
+           "Технолог": row_id[6],
+           "Код-1С": row_id[11],
+           "Название рабочее": row_id[12],
+           "Технология": row_id[21],
+           "Группа": row_id[22],
+           "Линейка": row_id[13],
+           "Клиент": row_id[28],
+           "Бренд": row_id[29]}
 
-    tmp_name = row_id[3]
+    check_summ = row_id[3] + row_id[4] + row_id[5] + row_id[6] + row_id[12]
+    check_summ += row_id[21] + row_id[22] + row_id[13] + row_id[28]
+    check_summ += row_id[29]
+    check_summ = adler32(check_summ.encode())
+    tmp_name = row_id[4]
     if len(tmp_name) > 0:
         tmp_name = tmp_name.strip(" ")
     my_folder = folders.get(tmp_name)
@@ -78,7 +83,7 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
                               rescheduleMode=None, copyStatuses="true",
                               copyResponsibles="true")
     id_project = resp[0]["id"]
-    id_manager = users_from_name[row_id[4]]["id"]
+    id_manager = users_from_name[row_id[5]]["id"]
     permalink = resp[0]["permalink"]
     cf = wr.custom_field_arr(cfd)
     resp_project = resp[0]["project"]
@@ -91,7 +96,8 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     log_ss(ss, id_project, f"G{num_row}", False)
 
     # обзначим в гугл таблице завершение работы
-    log_ss(ss, "Finish new product:" + now_str(), f"F{num_row}")
+    log_ss(ss, check_summ, f"E{num_row}", False)
+    log_ss(ss, "Finish new product:" + now_str(), f"F{num_row}", False)
     log_ss(ss, permalink, f"BW{num_row}")
     ok = True
     return (id_project, cfd), ok  # id созданного проекта , заполненные поля
@@ -157,9 +163,11 @@ def delete_product(ss, wr, id_project, num_row):
     log_ss(ss, "Del project:", f"F{num_row}")
     resp = wr.rs_del(f"folders/{id_project}")
     if resp:
+
         log_ss(ss, "Finish Del project:" + now_str(), f"F{num_row}", False)
         log_ss(ss, "", f"G{num_row}", False)
-        log_ss(ss, "", f"BV{num_row}")
+        log_ss(ss, "", f"BV{num_row}", False)
+        log_ss(ss, "", f"BW{num_row}")
         return True
     else:
         return False
@@ -288,28 +296,28 @@ def test_all_parametr(row_project, row_id, num_row, users_from_name,
         - ????
     '''
     ok = True
-    if len(row_id[1]) != 0:
+    if len(row_id[2]) != 0:
         ok = False
         db.out("Проект уже выгружен во Wrike", num_row=num_row,
                runtime_error="y", error_type="исходные данные")
-    if len(row_id[11]) == 0:
+    if len(row_id[12]) == 0:
         ok = False
         # log(f"{num_row} нет названия продукта")
         db.out("нет названия продукта", num_row=num_row,
                runtime_error="y", error_type="исходные данные")
     # руководитель проекта
-    id_user = users_from_name.get(row_id[4])
-    if not id_user or not id_user.get("id"):
-        ok = False
-        rp = row_id[4]
-        # log(f"{num_row} руководителя проекта {rp} нет во Wrike")
-        db.out(f"руководителя проекта {rp} нет во Wrike", num_row=num_row,
-               runtime_error="y", error_type="исходные данные")
-    # технолог
     id_user = users_from_name.get(row_id[5])
     if not id_user or not id_user.get("id"):
         ok = False
         rp = row_id[5]
+        # log(f"{num_row} руководителя проекта {rp} нет во Wrike")
+        db.out(f"руководителя проекта {rp} нет во Wrike", num_row=num_row,
+               runtime_error="y", error_type="исходные данные")
+    # технолог
+    id_user = users_from_name.get(row_id[6])
+    if not id_user or not id_user.get("id"):
+        ok = False
+        rp = row_id[6]
         # log(f"{num_row} технолог {rp} нет во Wrike")
         db.out(f"технолог {rp} нет во Wrike", num_row=num_row,
                runtime_error="y", error_type="исходные данные")
@@ -377,20 +385,45 @@ def write_date_to_google(ss, wr, num_row, project_id):
     return True
 
 
-def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink):
+def change_technologist(wr, id_project, resp_cf, num_row, technologist,
+                        users_from_name, users_from_id):
+    ''' проверка на смену технолога
+    '''
+    resp_cf = resp[0]["customFields"]
+    wrike_technologist = find_cf(wr, resp_cf, "Технолог")
+    wrike_id = users_from_name.get(wrike_technologist)
+    if wrike_id:
+        wrike_id = wrike_id["id"]
+    technologist_id = users_from_name.get(technologist)
+    if technologist_id:
+        technologist_id = technologist_id["id"]
+        if technologist_id != wrike_id:
+
+
+
+    return True,
+
+
+def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink,
+                   users_from_name, users_from_id):
     ''' проверяем поля у папки, меняем размещение в паапке проект
     '''
-    id_project = row_id[1]
+    id_project = row_id[2]
     if not id_project:
         db.out(f"нет ID проекта", num_row=num_row,
                untime_error="y", error_type="ошибка данных Google")
         return False
-    name_project = row_id[3]
+    name_project = row_id[4]
+    technologist = row_id[6]
     if len(name_project) > 0:
         name_project.strip(" ")
     my_folder = folders.get(name_project)
     resp = wr.get_folders(f"folders/{id_project}")
+
     if len(resp) > 0:
+        ok = change_technologist(wr, id_project, resp[0]["customFields"],
+                                 num_row, technologist,
+                                 users_from_name, users_from_id)
         my_parents = resp[0]["parentIds"]
         permalink = resp[0]["permalink"]
         if permalink != ss_permalink:
@@ -425,7 +458,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
 
     ss.sheetTitle = "Рабочая таблица №1"
     ss.sheetId = 1375512515
-    table_id = ss.values_get("F:AH")
+    table_id = ss.values_get("E:AH")
     table_project = ss.values_get("BV:CF")
     num_row = 19
     for row_project in table_project[19:]:
@@ -436,15 +469,15 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
         if len(row_project) == 0:
             continue
         if len(table_id) < num_row:
-            row_id = ["" for x in range(0, 29)]
+            row_id = ["" for x in range(0, 30)]
         else:
             row_id = table_id[num_row - 1]
-        if len(row_id) < 29:
-            plus_len = 29 - len(row_id)
+        if len(row_id) < 30:
+            plus_len = 30 - len(row_id)
             tmp_lst = ["" for x in range(0, plus_len)]
             row_id.extend(tmp_lst)
         if rp_filter:
-            if row_id[4] != rp_filter:
+            if row_id[5] != rp_filter:
                 continue
 
         # db.out("Проверка и отчистка результатов предыдущих сессий",
@@ -456,7 +489,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
                                    users_from_id)
             if not ok:
                 continue
-            m = f"Создаем продукт #{row_id[10]} {row_id[11]}"
+            m = f"Создаем продукт #{row_id[11]} {row_id[12]}"
             log_ss(ss, m, "BW5", True, 0)
             # log(m, True, False)
             db.out(m, num_row=num_row, prn_time=True)
@@ -504,7 +537,7 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # обновляем задачи с учетом всех статусов
             ok = update_sub_task(ss, wr, id_and_cfd[0],
                                  id_and_cfd[1], users_from_id,
-                                 users_from_name, row_id[4:6],
+                                 users_from_name, row_id[5:7],
                                  num_row, finish_status, dates_stage,
                                  personal_template)
             if not ok:
@@ -519,21 +552,21 @@ def load_from_google_to_wrike(ss, wr, users_from_name, users_from_id,
             # set_color_W(ss, num_row, finish_status)
         elif row_project[0] == "W":
             # обновление дат в гугл и признака выполенно
-            m = f"Обновляем даты #{num_row} {row_id[10]} {row_id[11]}"
+            m = f"Обновляем даты #{num_row} {row_id[11]} {row_id[12]}"
             log_ss(ss, m, "BW5")
             # log(m, True, False)
             db.out(m, num_row=num_row, prn_time=True)
-            ok = write_date_to_google(ss, wr, num_row, row_id[1])
-            m = f"Проверяем тексты и папку #{row_id[10]} {row_id[11]}"
+            ok = write_date_to_google(ss, wr, num_row, row_id[2])
+            m = f"Проверяем тексты и папку #{row_id[11]} {row_id[12]}"
             db.out(m, num_row=num_row, prn_time=True)
             ok = if_edit_folder(ss, wr, num_row, row_id, folder_id, folders,
-                                row_project[1])
+                                row_project[1], users_from_name, users_from_id)
 
         elif row_project[0] == "A":
             # удаляем проект из Wrike если он там есть
-            id_project = row_id[1]
+            id_project = row_id[2]
             if id_project:
-                m = f"Удаляем проект #{num_row} {row_id[10]} {row_id[11]}"
+                m = f"Удаляем проект #{num_row} {row_id[11]} {row_id[12]}"
                 log_ss(ss, m, "BW5")
                 # log(m, True, False)
                 db.out(m, num_row=num_row, prn_time=True)
@@ -701,7 +734,7 @@ def main():
     db.out(f"ID папки  {parent_title} {parent_id}")
 
     db.out("Получить ID, email  пользователей")
-    users_from_name, users_from_id = get_user(ss, wr)
+    users_from_name, users_from_id = get_user_list(ss, wr)
     ss.sheetTitle = "Рабочая таблица №1"
     ss.sheetId = 1375512515
     log_ss(ss, "Обновление началось " + now_str(), "BW5")

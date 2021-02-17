@@ -119,7 +119,7 @@ def read_stage_info(ss, wr, num_row, color_finish):
     return finish_list, dates_stage
 
 
-def get_user(ss, wr):
+def get_user_list(ss, wr):
     ''' возвращает два словаря пользователей
     ключ по имени из гугл таблицы
     ключ по id из wrike

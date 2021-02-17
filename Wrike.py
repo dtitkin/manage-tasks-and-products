@@ -279,7 +279,7 @@ class Wrike():
                          "Стратегическая группа", "Руководитель проекта",
                          "Клиент", "Бренд", "Код-1С", "Название рабочее",
                          "Группа", "Линейка", "Проект", "Технолог",
-                         "num_stage", "num_task"]
+                         "num_stage", "num_task", "Технология"]
 
         return_dict = {}
         for field in resp:
@@ -292,17 +292,14 @@ class Wrike():
 
     def custom_field_arr(self, name_value_dict):
         '''Возращает массив для custom field
+           не найденные элементы не использует
 
-        Если хоть один элемент не находится в шаблон то вернет None
         '''
         return_list = []
         for name, value in name_value_dict.items():
             d = self.customfields.get(name)
             if d:
                 return_list.append({"id": d, "value": value})
-            else:
-                return_list = None
-                break
         return return_list
 
     def dates_arr(self, type_="Planned", duration=480, start="", due="",

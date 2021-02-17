@@ -292,8 +292,8 @@ class Wrike():
 
     def custom_field_arr(self, name_value_dict):
         '''Возращает массив для custom field
+           не найденные элементы не использует
 
-        Если хоть один элемент не находится в шаблон то вернет None
         '''
         return_list = []
         for name, value in name_value_dict.items():

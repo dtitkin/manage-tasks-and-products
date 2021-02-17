@@ -41,7 +41,6 @@ def new_product(ss, wr, row_id, num_row, template_id, folder_id,
     log_ss(ss, "new product:", f"F{num_row}")
     # копируем шаблон в новый проект
     name_stage = row_id[11] + " " + row_id[12]
-
     cfd = {"Номер этапа": "",
            "Номер задачи": "",
            "Норматив часы": 0,
@@ -411,12 +410,14 @@ def change_tech_in_task(ss, wr, id_project,
     tech_group = []
     for key, item in users_from_id.items():
         if item["group"] == "Технолог":
+            if key == new_tech_id:
+                continue
             tech_group.append(key)
     tech_group = set(tech_group)
     #  читаем из `Wrike задачи
     fields = ["responsibleIds"]
-    resp = wr.gett_tasks(f"folders/{id_project}/tasks", subTasks="true",
-                         fields=fields)
+    resp = wr.get_tasks(f"folders/{id_project}/tasks", subTasks="true",
+                        fields=fields)
     # перебираем задачи и обновляем
     n = 0
     pred_proc = 0
@@ -437,8 +438,7 @@ def change_tech_in_task(ss, wr, id_project,
         if len(tech_group.intersection(ownersid)) == 0:
             # в задаче нет технологов менять некого
             continue
-
-        remove_r_bles = task["responsibleIds"]
+        remove_r_bles = list(tech_group)
         add_r_bles = [new_tech_id]
         cfd = {"Технолог": technologist}
         cf = wr.custom_field_arr(cfd)
@@ -451,7 +451,6 @@ def change_tech_in_task(ss, wr, id_project,
                    runtime_error="y", error_type="обновление задачи")
             break
     else:
-        # print()
         #  если обработали все задачи обозначим в таблице выполнение
         log_ss(ss, "Finish update sub task:" + now_str(), f"F{num_row}")
         return True

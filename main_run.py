@@ -385,11 +385,11 @@ def write_date_to_google(ss, wr, num_row, project_id):
     return True
 
 
-def change_technologist(wr, id_project, resp_cf, num_row, technologist,
-                        users_from_name, users_from_id):
+def new_tech(wr, id_project, resp_cf, technologist, users_from_name,
+             users_from_id):
     ''' проверка на смену технолога
     '''
-    resp_cf = resp[0]["customFields"]
+
     wrike_technologist = find_cf(wr, resp_cf, "Технолог")
     wrike_id = users_from_name.get(wrike_technologist)
     if wrike_id:
@@ -398,10 +398,64 @@ def change_technologist(wr, id_project, resp_cf, num_row, technologist,
     if technologist_id:
         technologist_id = technologist_id["id"]
         if technologist_id != wrike_id:
+            return technologist_id
+    return None
 
 
+def change_tech_in_task(ss, wr, id_project,
+                        new_tech_id, technologist, users_from_id, num_row):
+    ''' Меняем технолога в задачах и пользовательских полях
+    '''
+    log_ss(ss, "update sub task:", f"F{num_row}")
+    # получим список технологов
+    tech_group = []
+    for key, item in users_from_id.items():
+        if item["group"] == "Технолог":
+            tech_group.append(key)
+    tech_group = set(tech_group)
+    #  читаем из `Wrike задачи
+    fields = ["responsibleIds"]
+    resp = wr.gett_tasks(f"folders/{id_project}/tasks", subTasks="true",
+                         fields=fields)
+    # перебираем задачи и обновляем
+    n = 0
+    pred_proc = 0
+    len_sub = len(resp)
+    for task in resp:
+        n += 1
+        percent = n / len_sub
+        if db.log == "all" or db.log == "terminal":
+            progress(percent)
+        if pred_proc + 1 == int(percent * 10):
+            pred_proc += 1
+            log_ss(ss, f"{num_row}:{pred_proc*10}%", f"BW18", True, 0)
+        # определям список пользователей которых нужно исключить из задачи
+        ownersid = set(task["responsibleIds"])
+        if new_tech_id in ownersid:
+            # новый технолог уже установлен
+            continue
+        if len(tech_group.intersection(ownersid)) == 0:
+            # в задаче нет технологов менять некого
+            continue
 
-    return True,
+        remove_r_bles = task["responsibleIds"]
+        add_r_bles = [new_tech_id]
+        cfd = {"Технолог": technologist}
+        cf = wr.custom_field_arr(cfd)
+        #  обновляем задачу
+        resp_upd = wr.update_task(task["id"], removeResponsibles=remove_r_bles,
+                                  addResponsibles=add_r_bles,
+                                  customFields=cf)
+        if len(resp_upd) == 0:
+            db.out(task["id"] + " ошибка обновления", num_row=num_row,
+                   runtime_error="y", error_type="обновление задачи")
+            break
+    else:
+        # print()
+        #  если обработали все задачи обозначим в таблице выполнение
+        log_ss(ss, "Finish update sub task:" + now_str(), f"F{num_row}")
+        return True
+    return False
 
 
 def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink,
@@ -421,9 +475,13 @@ def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink,
     resp = wr.get_folders(f"folders/{id_project}")
 
     if len(resp) > 0:
-        ok = change_technologist(wr, id_project, resp[0]["customFields"],
-                                 num_row, technologist,
-                                 users_from_name, users_from_id)
+        new_tech_id = new_tech(wr, id_project, resp[0]["customFields"],
+                               technologist, users_from_name, users_from_id)
+        cf = None
+        if new_tech_id:
+            cfd = {"Технолог": technologist}
+            cf = wr.custom_field_arr(cfd)
+
         my_parents = resp[0]["parentIds"]
         permalink = resp[0]["permalink"]
         if permalink != ss_permalink:
@@ -435,15 +493,21 @@ def if_edit_folder(ss, wr, num_row, row_id, parent_id, folders, ss_permalink,
             addParents = [my_folder]
         if parent_id in my_parents:
             removeParents = [parent_id]
-        if addParents or removeParents:
+        if addParents or removeParents or cf:
             resp = wr.update_folder(id_project, addParents=addParents,
-                                    removeParents=removeParents)
-            if len(resp) > 0:
-                return True
-            else:
+                                    removeParents=removeParents,
+                                    customFields=cf)
+            if len(resp) == 0:
                 db.out(f"не обновляется папка {id_project}", num_row=num_row,
                        runtime_error="y", error_type="ошибка чтения Wrike")
                 return False
+            if new_tech_id:
+                ok = change_tech_in_task(ss, wr, id_project,
+                                         new_tech_id, technologist,
+                                         users_from_id, num_row)
+                return ok
+            else:
+                return True
         else:
             return True
     else:

@@ -69,10 +69,14 @@ class Projectenv():
         self.db = None
         self.template_id = None
         self.parent_id = None
-        self.users_from_name = None
-        self.users_from_id = None
         self.users_name = None
         self.users_id = None
+        self.users_name = None
+        self.users_id = None
+
+        self.user_token = None
+        self.rp_filter = None
+        self.row_filter = None
 
         # обрабатываем список аргументов
         # 0 - сам скрипт
@@ -84,32 +88,22 @@ class Projectenv():
         # 5-й читаем еслить есть -n номер строки котору обрабатывать
         if not line_argument:
             line_argument = ["", "admin"]
-        lst_argv = line_argument
-        if len(lst_argv) == 1:
-            print("Укажите токен пользователя или help")
-            return False
+        if len(line_argument) == 1:
+            self.user_token = None
         else:
-            self.user_token = lst_argv[1]
-            if self.user_token == "help" or self.user_token == "-h":
-                print(" user_token или help или admin. Обязательный параметр")
-                print(" -rp <'имя менеджера проекта для фильтра'>."
-                      " Не обязательный.")
-                print(" -n <номер_строки для фильтра>. Не обязательный.")
-            return False
-        if len(lst_argv) >= 4:
-            key = lst_argv[2]
+            self.user_token = line_argument[1]
+        if len(line_argument) >= 4:
+            key = line_argument[2]
             if key == "-rp":
-                self.rp_filter = lst_argv[3]
+                self.rp_filter = line_argument[3]
             elif key == "-n":
-                self.row_filter = int(lst_argv[3])
-        if len(lst_argv) == 6:
-            key = lst_argv[4]
+                self.row_filter = int(line_argument[3])
+        if len(line_argument) == 6:
+            key = line_argument[4]
             if key == "-rp":
-                self.rp_filter = lst_argv[5]
+                self.rp_filter = line_argument[5]
             elif key == "-n":
-                self.row_filter = int(lst_argv[5])
-        if self.db.rp_filter and self.rp_filter is None:
-            self.rp_filter = self.db.rp_filter
+                self.row_filter = int(line_argument[5])
 
     def connect_db(self):
         if self.user_token == "admin":
@@ -127,11 +121,22 @@ class Projectenv():
     def user_in_base(self):
         if self.user_token == "admin":
             return True
+        if not self.user_token:
+            print("Укажите токен пользователя или help")
+            return False
+        if self.user_token == "help" or self.user_token == "-h":
+            print(" user_token или help или admin. Обязательный параметр")
+            print(" -rp <'имя менеджера проекта для фильтра'>."
+                  " Не обязательный.")
+            print(" -n <номер_строки для фильтра>. Не обязательный.")
+            return False
         ok = self.db.get_user(self.user_token)
         if not ok:
             print("Пользователь по токену", self.user_token, "не найден")
             return False
         else:
+            if self.db.rp_filter and self.rp_filter is None:
+                self.rp_filter = self.db.rp_filter
             return True
 
     def connect_spreadsheet(self):
@@ -182,10 +187,10 @@ class Projectenv():
             work_sheet
             project_sheet
         '''
-        name_and_id = self.sheet.get(sheet)
+        name_and_id = self.sheets.get(sheet)
         if name_and_id:
             self.ss.sheetTitle = name_and_id[0]
-            self.ss.sheetId = name_and_id[1]
+            self.ss.sheetId = int(name_and_id[1])
 
     def get_user_list(self, cell_user):
         ''' возвращает два словаря пользователей
@@ -287,7 +292,7 @@ class Projectenv():
             возвращает id папки
         '''
         return_value = None
-        resp = self.sheetswr.get_folders("folders", permalink=wrike_link)
+        resp = self.wr.get_folders("folders", permalink=wrike_link)
         if len(resp) == 0:
             self.db.out(f"нет папки во wrike {name_project} {wrike_link}",
                         num_row=num_row,
@@ -326,7 +331,7 @@ class Projectenv():
             словарь возвращается сразу отфильтрованным по руководителю
             и номеру строки
         '''
-        def make_dict_from_column(row_id, row_project):
+        def make_dict_from_column(row_id, row_project, num_row):
             return_dict = {}
             return_dict["check"] = row_id[0]
             return_dict["log"] = row_id[1]
@@ -349,7 +354,7 @@ class Projectenv():
             return_dict["permalink"] = row_project[1]
 
             tmp_lst = []
-            for k in range(2, len(row_project) - 1):
+            for k in range(2, len(row_project)):
                 tmp_lst.append(row_project[k])
             return_dict["dates"] = tmp_lst.copy()
             return_dict["template_id"] = None
@@ -372,10 +377,10 @@ class Projectenv():
         self .sheet_now("work_sheet")
         table_id = self.ss.values_get(self.table_params)
         table_project = self.ss.values_get(self.table_plan)
-        num_row = self.start_work_table
+        num_row = int(self.start_work_table)
         if self.row_filter:
             if self.row_filter <= len(table_project):
-                table_project = table_project[self.row_filter]
+                table_project = [table_project[self.row_filter - 1]]
                 num_row = self.row_filter - 1
             else:
                 return return_dict
@@ -391,11 +396,12 @@ class Projectenv():
                 row_id = table_id[num_row - 1]
             if len(row_id) < 30:
                 row_id.extend(["" for x in range(0, 30 - len(row_id))])
-            c_v = make_dict_from_column(row_id, row_project, num_row)
-            if self.rp_filter:
-                if c_v["Руководитель проекта"] != self.rp_filter:
-                    continue
-            if c_v["command"] in "GAPWN":
+
+            if row_project[0] and row_project[0] in "GAPWN":
+                if self.rp_filter:
+                    if row_id[5] != self.rp_filter:
+                        continue
+                c_v = make_dict_from_column(row_id, row_project, num_row)
                 return_dict[num_row] = c_v.copy()
         return return_dict
 
@@ -427,12 +433,12 @@ class Projectenv():
             или установить в шаблон
         '''
         return_list = []
-        manager_id = self.users_from_name[rp]["id"]
-        teh_id = self.users_from_name[tech]["id"]
+        manager_id = self.users_name[rp]["id"]
+        teh_id = self.users_name[tech]["id"]
 
         group_user = {"RP": [], "RP_helper": [], "Tech": [], "Other": []}
         for num, user in enumerate(task_user, 1):
-            group = self.users_from_id[user]["group"]
+            group = self.users_id[user]["group"]
             slice_pos = group.find("[")
             if slice_pos > -1:
                 group = group[0:slice_pos]
@@ -453,14 +459,14 @@ class Projectenv():
                 tmp_lst = [vl for vl in group_user["RP"] if vl != manager_id]
                 return_list.extend(tmp_lst)
                 if len(group_user["RP_helper"]) > 0:
-                    id_helper = self.users_from_name[rp].get("idhelper")
+                    id_helper = self.users_name[rp].get("idhelper")
                     if not id_helper:
                         return_list.extend(group_user["RP_helper"])
 
         else:
             if len(group_user["RP"]) > 0:
                 return_list.append(manager_id)
-                id_helper = self.users_from_name[rp].get("idhelper")
+                id_helper = self.users_name[rp].get("idhelper")
                 if id_helper and num_task.find("*") > 0:
                     return_list.append(id_helper)
             if len(group_user["Tech"]) > 0:
@@ -477,7 +483,7 @@ class Projectenv():
         for cf in resp_cf:
             if cf["id"] == id_field:
                 return_value = cf["value"]
-            break
+                break
         return return_value
 
 

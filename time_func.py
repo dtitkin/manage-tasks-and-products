@@ -19,10 +19,12 @@ def make_date(usr_date):
         lst_date = usr_date[0:10].split("/")
     else:
         return date.today()
+    if len(lst_date[2]) == 2:
+        lst_date[2] = "20" + lst_date[2]
     return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
 
 
-def read_date_for_project(ss, end_stage, len_stage, holydays):
+def read_date_for_project(end_stage, len_stage, holydays):
     ''' считываем с таблицы дату завершения этапа и по длительности этапа
         определяем дату задачи в этапе.
     '''

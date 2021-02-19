@@ -160,7 +160,10 @@ class Wrike():
                     break
             return data
         else:
-            return []
+            if data:
+                return data
+            else:
+                return []
 
     def create_task(self, folderid, title, description=None, status="Active",
                     importance="Normal", dates=None, shareds=None,

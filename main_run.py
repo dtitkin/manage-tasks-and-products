@@ -40,7 +40,7 @@ def new_product(row_project, num_row, date_start, folders):
            "Код-1С": row_project["code"],
            "Название рабочее": row_project["product"],
            "Технология": row_project["howmake"],
-           "Группа": row_project["grioup"],
+           "Группа": row_project["group"],
            "Линейка": row_project["line"],
            "Клиент": row_project["client"],
            "Бренд": row_project["brand"]}
@@ -65,7 +65,7 @@ def new_product(row_project, num_row, date_start, folders):
                               copyResponsibles="true")
     id_project = resp[0]["id"]
     permalink = resp[0]["permalink"]
-    id_manager = env.users_from_name[row_project["rp"]]["id"]
+    id_manager = env.users_name[row_project["rp"]]["id"]
     ownerIds = resp[0]["project"]["ownerIds"]
     pr = {"ownersAdd": [id_manager]}
     if ownerIds and ownerIds[0] != id_manager:
@@ -118,14 +118,14 @@ def test_all_parametr(row_project, num_row):
         env.db.out("нет названия продукта", num_row=num_row,
                    runtime_error="y", error_type="исходные данные")
     # руководитель проекта
-    id_user = env.users_from_name.get(row_project["rp"])
+    id_user = env.users_name.get(row_project["rp"])
     if not id_user or not id_user.get("id"):
         ok = False
         env.db.out(f"руководителя проекта {row_project['rp']} нет во Wrike",
                    num_row=num_row,
                    runtime_error="y", error_type="исходные данные")
     # технолог
-    id_user = env.users_from_name.get(row_project["tech"])
+    id_user = env.users_name.get(row_project["tech"])
     if not id_user or not id_user.get("id"):
         ok = False
         env.db.out(f"технолог {row_project['tech']} нет во Wrike",
@@ -167,7 +167,7 @@ def write_date_to_google(num_row, project_id):
     cells_range = (f"{env.columns_stage[0]}{num_row}:"
                    f"{env.columns_stage[-1]}{num_row}")
     env.ss.prepare_setvalues(cells_range, lst_values)
-    for n, f in enumerate(env.columns_stage, 0):
+    for n, f in enumerate(lst_finish, 0):
         column = env.columns_stage[n]
         txt_field = "userEnteredFormat.textFormat"
         bcg_field = "userEnteredFormat.backgroundColor"
@@ -191,10 +191,10 @@ def new_tech(id_project, resp_cf, technologist):
     '''
 
     wrike_technologist = env.find_cf(resp_cf, "Технолог")
-    wrike_id = env.users_from_name.get(wrike_technologist)
+    wrike_id = env.users_name.get(wrike_technologist)
     if wrike_id:
         wrike_id = wrike_id["id"]
-    technologist_id = env.users_from_name.get(technologist)
+    technologist_id = env.users_name.get(technologist)
     if technologist_id:
         technologist_id = technologist_id["id"]
         if technologist_id != wrike_id:
@@ -208,7 +208,7 @@ def change_tech_in_task(id_project, new_tech_id, technologist, num_row):
     env.print_ss("update sub task:", f"{env.column_log}{num_row}")
     # получим список технологов
     tech_group = []
-    for key, item in env.users_from_id.items():
+    for key, item in env.users_id.items():
         if item["group"] == "Технолог":
             if key == new_tech_id:
                 continue
@@ -274,22 +274,23 @@ def if_edit_table(num_row, row_project, folders):
         new_tech_id = new_tech(row_project["id_project"],
                                resp[0]["customFields"],
                                row_project["tech"])
-        cf = None
-        if new_tech_id:
-            cfd = {"Технолог": row_project["tech"]}
-            cf = env.wr.custom_field_arr(cfd)
-
         my_parents = resp[0]["parentIds"]
         permalink = resp[0]["permalink"]
         if permalink != row_project["permalink"]:
             env.print_ss(permalink, f"{env.column_link}{num_row}")
         addParents = None
         removeParents = None
-
+        cf = None
+        cfd = {}
         if my_folder and my_folder not in my_parents:
             addParents = [my_folder]
-        if env.parent_id in my_parents:
-            removeParents = [env.parent_id]
+            removeParents = my_parents
+            cfd["Проект"] = row_project["project"]
+        if new_tech_id:
+            cfd["Технолог"] = row_project["tech"]
+        if len(cfd) > 0:
+            cf = env.wr.custom_field_arr(cfd)
+
         if addParents or removeParents or cf:
             resp = env.wr.update_folder(row_project["id_project"],
                                         addParents=addParents,
@@ -300,6 +301,7 @@ def if_edit_table(num_row, row_project, folders):
                            num_row=num_row,
                            runtime_error="y", error_type="ошибка записи Wrike")
                 return False
+            #  доделать обновление полей в задачах, в том числе поле проект
             if new_tech_id:
                 ok = change_tech_in_task(row_project["id_project"],
                                          new_tech_id, row_project["tech"],
@@ -374,8 +376,8 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
         remove_users = env.find_task_user(ownersid, rp, tech,
                                           num_task)
         if personal_template:
-            add_users = env.find_r_bles(ownersid, rp, tech, num_task,
-                                        False)
+            add_users = env.find_task_user(ownersid, rp, tech, num_task,
+                                           False)
         else:
             add_users = None
 
@@ -414,7 +416,7 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
 
 def sync_google_wrike(folders):
 
-    env.db.out("Синхронизааци Гугл и Wrike", prn_time=True)
+    env.db.out("Синхронизация Гугл и Wrike", prn_time=True)
     table = env.get_work_table()
     for num_row, row_project in table.items():
         chek_old_session(row_project, num_row)
@@ -427,12 +429,12 @@ def sync_google_wrike(folders):
             env.print_ss(m, env.cell_log, True, 0)
             env.db.out(m, num_row=num_row, prn_time=True)
             #  определяем дату для старта проекта
-            len_stage = env.get_len_stage(1)
+            len_stage = env.get_len_stage("1")
             date_start = read_date_for_project(row_project["dates"][0],
                                                len_stage, env.HOLYDAY)
             # проверим персональный шаблон
-            if env.template_id:
-                m = f"используем шаблон из строки {env.template_str}"
+            if row_project["template_id"]:
+                m = f"Шаблон из строки {row_project['template_str']}"
                 env.db.out(m, num_row=num_row)
             #  создаем новый проект
             id_and_cfd = new_product(row_project, num_row, date_start,
@@ -444,10 +446,10 @@ def sync_google_wrike(folders):
             # считываем статусы и даты этапов из таблицы
             finish_status, dates_stage = read_stage_info(num_row)
             # обновляем задачи с учетом всех статусов
-            ok = env.update_sub_task(id_and_cfd, row_project["rp"],
-                                     row_project["tech"], num_row,
-                                     finish_status, dates_stage,
-                                     row_project["template_id"])
+            ok = update_sub_task(id_and_cfd, row_project["rp"],
+                                 row_project["tech"], num_row,
+                                 finish_status, dates_stage,
+                                 row_project["template_id"])
             if not ok:
                 env.db.out("!Выполнение прервано!", num_row=num_row,
                            runtime_error="y",

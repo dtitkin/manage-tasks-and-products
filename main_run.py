@@ -3,7 +3,7 @@ import time
 import sys
 
 import Projectenv
-from sub_func import now_str, make_date, read_date_for_project
+from time_func import now_str, make_date, read_date_for_project
 
 VERSION = '1.0'
 env = None  # объект для параметров проекта

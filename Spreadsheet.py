@@ -188,6 +188,9 @@ class Spreadsheet():
         return res
 
     def sh_get(self, cellsRange):
+        ''' используем API spreadsheets
+            для получения расширеннных данных из таблицы
+        '''
         sheet_and_range = cellsRange.split("!")
         if len(sheet_and_range) == 2:
             self.sheetTitle = sheet_and_range[0]
@@ -205,6 +208,34 @@ class Spreadsheet():
             if self.debugMode:
                 pprint(getRes)
         return getRes["sheets"]
+
+    def read_color_cells(self, cellsRange):
+        ''' возвращает список, элементы - строка
+            строка - список столбцов, элементы - кортеж из трех словарей
+            на каждый столбец
+            1 - цвет фона
+            2 - цвет шрифта
+            3 - значение в ячейке
+        '''
+        return_list = []
+        resp = self.sh_get(cellsRange)[0]  # был вариант API когда не список
+        # sh = resp["sheets"][0]
+        data = resp["data"][0]
+        row_data = data.get("rowData", [])
+        n = 0
+        for row in row_data:
+            return_list.append([])
+            row_lst = return_list[n]
+            n += 1
+            vls = row["values"]
+            for column in vls:
+                ef_format = column["effectiveFormat"]
+                bg_color = ef_format["backgroundColor"]
+                fnt_color = ef_format["textFormat"]["foregroundColor"]
+                value = column["formattedValue"]
+                row_lst.append((bg_color, fnt_color, value))
+        return return_list
+
 
 # Функции тестирования класса
 '''CREDENTIALS_FILE = 'creds.json'

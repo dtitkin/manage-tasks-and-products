@@ -144,8 +144,23 @@ class Wrike():
         '''
         task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
-        resp = self.rs_get(task_area, **task_params)
-        return resp
+        task_params["pageSize"] = 1000
+        resp = self.rs_get(task_area, arr="json", **task_params)
+        data = []
+        responseSize = resp.get("responseSize")
+        data = resp.get("data")
+        if responseSize:
+            while responseSize > 1000:
+                nextPageToken = resp["nextPageToken"]
+                task_params["nextPageToken"] = nextPageToken
+                resp = self.rs_get(task_area, arr="json", **task_params)
+                responseSize = resp.get("responseSize")
+                data.extend(resp["data"])
+                if not responseSize:
+                    break
+            return data
+        else:
+            return []
 
     def create_task(self, folderid, title, description=None, status="Active",
                     importance="Normal", dates=None, shareds=None,
@@ -340,7 +355,7 @@ class Wrike():
         return return_descr
 
     def id_contacts_on_email(self, email_list):
-        ''' по списку email  возвоащает такой же по размеру список id
+        ''' по списку email  возвращает такой же по размеру список id
             None там где не нашел email
         '''
         resp = self.rs_get("contacts")

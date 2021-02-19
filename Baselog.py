@@ -7,12 +7,11 @@ from mysql.connector import errorcode
 
 
 class Baselog():
-    def __init__(self, user, password, host, database, log="all",
+    def __init__(self, log="all",
                  debugMode=False, admin_mode=False):
         ''' выводит лог на экран        - log = "terminal"
                         в базу данных   - log = "base"
                         в оба канала    - log = "all"
-
         '''
         self.log = log
         self.cnx = None
@@ -22,7 +21,12 @@ class Baselog():
         self.email_user = None
         self.admin_mode = admin_mode
         self.rp_filter = None
-        if not admin_mode:
+        self.sql_add_user = None
+        self.sql_add_log = None
+        self.sql_upd_log = None
+
+    def connect(self, user, password, host, database):
+        if not self.admin_mode:
             try:
                 self.cnx = mysql.connect(user=user, password=password,
                                          host=host, database=database)

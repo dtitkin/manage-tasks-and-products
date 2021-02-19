@@ -33,14 +33,6 @@ def clear_experiment(root_task_id, folder_id, wr):
     print()
 
 
-def progress(percent=0, width=30):
-    left = int(width * percent) // 1
-    right = width - left
-    print('\r[', '#' * left, ' ' * right, ']',
-          f' {percent * 100:.0f}%',
-          sep='', end='', flush=True)
-
-
 def find_id_task(stage_and_task, pred_task):
     return_id = None
     for stage in stage_and_task.values():
@@ -263,17 +255,6 @@ def del_in_main(name_sheet="000 НОВЫЕ ПРОДУКТЫ"):
 def del_in_templ():
     del_in_main(name_sheet="001 ШАБЛОНЫ (новые продукты Рубис)")
 
-
-def find_cf(wr, resp_cf, name_cf):
-    ''' Ищем в списке полей поле с нужным id
-    '''
-    return_value = ""
-    id_field = wr.customfields[name_cf]
-    for cf in resp_cf:
-        if cf["id"] == id_field:
-            return_value = cf["value"]
-            break
-    return return_value
 
 
 def len_mile():

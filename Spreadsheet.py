@@ -131,6 +131,10 @@ class Spreadsheet():
         return cellsRange
 
     def prepare_setvalues(self, cellsRange, values, majorDimension="ROWS"):
+        sheet_and_range = cellsRange.split("!")
+        if len(sheet_and_range) == 2:
+            self.sheetTitle = sheet_and_range[0]
+            cellsRange = sheet_and_range[1]
         if self.sheetTitle is None:
             raise SheetNotSetError()
         self.valueRanges.append(
@@ -157,7 +161,7 @@ class Spreadsheet():
     def prepare_setcells_many_format(self, cellsRange, formatsJSON,
                                      fields="userEnteredFormat"):
 
-        rows = [{"values": [{"userEnteredFormat": cellFormat} for cellFormat in rowFormats]} for rowFormats in formatsJSON]
+        rows = [{"values": [{"userEnteredFormat": cellFormat} for cellFormat in  rowFormats]} for rowFormats in formatsJSON]
         self.requests.append(
             {
                 "updateCells": {"range": self.togrid_range(cellsRange),

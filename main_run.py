@@ -32,18 +32,9 @@ def new_product(row_project, num_row, date_start, folders):
     name_stage = row_project["code"] + " " + row_project["product"]
     cfd = {"Номер этапа": "",
            "Номер задачи": "",
-           "Норматив часы": 0,
-           "Стратегическая группа": row_project["stratgroup"],
-           "Проект": row_project["project"],
-           "Руководитель проекта": row_project["rp"],
-           "Технолог": row_project["tech"],
-           "Код-1С": row_project["code"],
-           "Название рабочее": row_project["product"],
-           "Технология": row_project["howmake"],
-           "Группа": row_project["group"],
-           "Линейка": row_project["line"],
-           "Клиент": row_project["client"],
-           "Бренд": row_project["brand"]}
+           "Норматив часы": 0}
+    for name, key in zip(env.custom_value_name, env.custom_value_key):
+        cfd[name] = row_project[key]
 
     folder_id = env.parent_id
     my_folder = folders.get(row_project["project"])
@@ -202,7 +193,7 @@ def new_tech(id_project, resp_cf, technologist):
     return None
 
 
-def change_tech_in_task(id_project, new_tech_id, technologist, num_row):
+def change_tech_in_task(id_project, new_tech_id, num_row, cf):
     ''' Меняем технолога в задачах и пользовательских полях
     '''
     env.print_ss("update sub task:", f"{env.column_log}{num_row}")
@@ -232,25 +223,28 @@ def change_tech_in_task(id_project, new_tech_id, technologist, num_row):
                          env.cell_progress, True, 0)
         # определям список пользователей которых нужно исключить из задачи
         ownersid = set(task["responsibleIds"])
-        if new_tech_id in ownersid:
-            # новый технолог уже установлен
-            continue
-        if len(tech_group.intersection(ownersid)) == 0:
-            # в задаче нет технологов менять некого
-            continue
         remove_r_bles = list(tech_group)
         add_r_bles = [new_tech_id]
-        cfd = {"Технолог": technologist}
-        cf = env.wr.custom_field_arr(cfd)
+
+        if new_tech_id in ownersid:
+            # новый технолог уже установлен
+            remove_r_bles = None
+            add_r_bles = None
+        if len(tech_group.intersection(ownersid)) == 0:
+            # в задаче нет технологов менять некого
+            remove_r_bles = None
+            add_r_bles = None
         #  обновляем задачу
-        resp_upd = env.wr.update_task(task["id"],
-                                      removeResponsibles=remove_r_bles,
-                                      addResponsibles=add_r_bles,
-                                      customFields=cf)
-        if len(resp_upd) == 0:
-            env.db.out(task["id"] + " ошибка обновления", num_row=num_row,
-                       runtime_error="y", error_type="обновление задачи")
-            break
+        if remove_r_bles or add_r_bles or cf:
+            resp_upd = env.wr.update_task(task["id"],
+                                          removeResponsibles=remove_r_bles,
+                                          addResponsibles=add_r_bles,
+                                          customFields=cf)
+            if len(resp_upd) == 0:
+                env.db.out(task["title"] + " ошибка обновления",
+                           num_row=num_row,
+                           runtime_error="y", error_type="обновление задачи")
+                break
     else:
         #  если обработали все задачи обозначим в таблице выполнение
         env.print_ss("Finish update sub task",
@@ -259,13 +253,22 @@ def change_tech_in_task(id_project, new_tech_id, technologist, num_row):
     return False
 
 
+def find_change_cfd(row_project, resp_cf):
+    cfd = {}
+    for name, key in zip(env.custom_value_name, env.custom_value_key):
+        value_in_wrike = env.find_cf(resp_cf, name)
+        if value_in_wrike != row_project[key]:
+            cfd[name] = row_project[key]
+    return cfd
+
+
 def if_edit_table(num_row, row_project, folders):
     ''' проверяем поля у папки, меняем размещение в папке проект
     '''
 
     if not row_project["id_project"]:
         env.db.out(f"нет ID проекта", num_row=num_row,
-                   untime_error="y", error_type="ошибка данных Google")
+                   runtime_error="y", error_type="ошибка данных Google")
         return False
     my_folder = folders.get(row_project["project"])
     resp = env.wr.get_folders(f"folders/{row_project['id_project']}")
@@ -281,38 +284,40 @@ def if_edit_table(num_row, row_project, folders):
         addParents = None
         removeParents = None
         cf = None
-        cfd = {}
+
         if my_folder and my_folder not in my_parents:
             addParents = [my_folder]
             removeParents = my_parents
-            cfd["Проект"] = row_project["project"]
-        if new_tech_id:
-            cfd["Технолог"] = row_project["tech"]
+
+        cfd = find_change_cfd(row_project, resp[0]["customFields"])
         if len(cfd) > 0:
             cf = env.wr.custom_field_arr(cfd)
+        title = None
+        name_stage = row_project["code"] + " " + row_project["product"]
+        if resp[0]["title"] != name_stage.upper():
+            title = name_stage.upper()
 
-        if addParents or removeParents or cf:
-            resp = env.wr.update_folder(row_project["id_project"],
+        if addParents or removeParents or cf or title:
+            resp = env.wr.update_folder(row_project["id_project"], title=title,
                                         addParents=addParents,
                                         removeParents=removeParents,
                                         customFields=cf)
             if len(resp) == 0:
-                env.db.out(f"не обновляется {row_project['id_project']}",
+                env.db.out(f"не обновляется {row_project['product']}",
                            num_row=num_row,
                            runtime_error="y", error_type="ошибка записи Wrike")
                 return False
             #  доделать обновление полей в задачах, в том числе поле проект
-            if new_tech_id:
+            if new_tech_id or cf:
                 ok = change_tech_in_task(row_project["id_project"],
-                                         new_tech_id, row_project["tech"],
-                                         num_row)
+                                         new_tech_id, num_row, cf)
                 return ok
             else:
                 return True
         else:
             return True
     else:
-        env.db.out(f"не читается папка {row_project['id_project']}",
+        env.db.out(f"не читается папка {row_project['project']}",
                    num_row=num_row,
                    runtime_error="y", error_type="ошибка чтения Wrike")
         return False
@@ -488,6 +493,7 @@ def create_folder_in_parent():
     '''
     env.db.out("Создание папок для проектов")
     filter_project = env.get_project_on_row()
+    resp_folder = env.wr.get_folders(f"folders/{env.parent_id}/folders")
     table = env.get_project_list()
     num_str = 29
     return_dict = {}
@@ -499,7 +505,7 @@ def create_folder_in_parent():
         if env.row_filter and filter_project != name_project:
             continue
         if len(name_project) > 0:
-            name_project = name_project.strip(" ")
+            name_project = name_project
         wrike_link = ""
         if len(project) == 4:
             wrike_link = project[3]

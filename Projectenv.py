@@ -48,7 +48,12 @@ class Projectenv():
         self.color_font_finish = Spreadsheet.htmlColorToJSON("#000000")
         self.color_bc = Spreadsheet.htmlColorToJSON("#6aa84f")
         self.color_font = Spreadsheet.htmlColorToJSON("#ffffff")
-
+        custom_value_name = cfg["spreadsheet"]["custom_value_name"]
+        self.custom_value_name = custom_value_name.split(",")
+        custom_value_key = cfg["spreadsheet"]["custom_value_key"]
+        self.custom_value_key = custom_value_key.split(",")
+        custom_value_adr = cfg["spreadsheet"]["custom_value_adr"]
+        self.custom_value_adr = custom_value_adr.split(",")
         # wrike секция
         self.TOKEN = cfg["wrike"]["wriketoken"]
         self.prototip_link = cfg["wrike"]["prototip_link"]
@@ -336,23 +341,12 @@ class Projectenv():
             return_dict["check"] = row_id[0]
             return_dict["log"] = row_id[1]
             return_dict["id_project"] = row_id[2]
-
-            return_dict["stratgroup"] = row_id[3]
-            return_dict["project"] = str(row_id[4]).strip(" ")
-            return_dict["rp"] = row_id[5]
-            return_dict["tech"] = row_id[6]
-
-            return_dict["code"] = row_id[11]
-            return_dict["product"] = row_id[12]
-            return_dict["howmake"] = row_id[21]
-            return_dict["group"] = row_id[22]
-            return_dict["line"] = row_id[23]
-            return_dict["client"] = row_id[28]
-            return_dict["brand"] = row_id[29]
-
             return_dict["comand"] = row_project[0]
             return_dict["permalink"] = row_project[1]
 
+            for key, index in zip(self.custom_value_key,
+                                  self.custom_value_adr):
+                return_dict[key] = row_id[int(index)]
             tmp_lst = []
             for k in range(2, len(row_project)):
                 tmp_lst.append(row_project[k])

@@ -493,7 +493,6 @@ def create_folder_in_parent():
     '''
     env.db.out("Создание папок для проектов")
     filter_project = env.get_project_on_row()
-    resp_folder = env.wr.get_folders(f"folders/{env.parent_id}/folders")
     table = env.get_project_list()
     num_str = 29
     return_dict = {}

@@ -326,7 +326,7 @@ class Projectenv():
         else:
             return_value = resp[0]["id"]
             self.sheet_now("project_sheet")
-            self.ptint_ss(resp[0]["permalink"], f"E{num_row}")
+            self.print_ss(resp[0]["permalink"], f"E{num_row}")
         return return_value
 
     def get_work_table(self):

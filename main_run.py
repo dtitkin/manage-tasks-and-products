@@ -197,7 +197,7 @@ def change_tech_in_task(id_project, new_tech_id, num_row, cf):
     ''' Меняем технолога в задачах и пользовательских полях
     '''
     env.print_ss("update sub task:", f"{env.column_log}{num_row}")
-    # получим список технологов
+    # получим список технологов кроме нового технолога
     tech_group = []
     for key, item in env.users_id.items():
         if item["group"] == "Технолог":
@@ -226,7 +226,7 @@ def change_tech_in_task(id_project, new_tech_id, num_row, cf):
         remove_r_bles = list(tech_group)
         add_r_bles = [new_tech_id]
 
-        if new_tech_id in ownersid:
+        if new_tech_id in ownersid or not new_tech_id:
             # новый технолог уже установлен
             remove_r_bles = None
             add_r_bles = None
@@ -257,7 +257,7 @@ def find_change_cfd(row_project, resp_cf):
     cfd = {}
     for name, key in zip(env.custom_value_name, env.custom_value_key):
         value_in_wrike = env.find_cf(resp_cf, name)
-        if value_in_wrike != row_project[key]:
+        if value_in_wrike != row_project[key] or env.update_all_cv:
             cfd[name] = row_project[key]
     return cfd
 

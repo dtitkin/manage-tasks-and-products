@@ -82,6 +82,7 @@ class Projectenv():
         self.user_token = None
         self.rp_filter = None
         self.row_filter = None
+        self.update_all_cv = None
 
         # обрабатываем список аргументов
         # 0 - сам скрипт
@@ -97,18 +98,15 @@ class Projectenv():
             self.user_token = None
         else:
             self.user_token = line_argument[1]
-        if len(line_argument) >= 4:
-            key = line_argument[2]
+
+        while len(line_argument) > 2:
+            key = line_argument.pop(2)
             if key == "-rp":
-                self.rp_filter = line_argument[3]
+                self.rp_filter = line_argument.pop(2)
             elif key == "-n":
-                self.row_filter = int(line_argument[3])
-        if len(line_argument) == 6:
-            key = line_argument[4]
-            if key == "-rp":
-                self.rp_filter = line_argument[5]
-            elif key == "-n":
-                self.row_filter = int(line_argument[5])
+                self.row_filter = int(line_argument.pop(2))
+            if key == "-cv":
+                self.update_all_cv = True
 
     def connect_db(self):
         if self.user_token == "admin":
@@ -134,6 +132,7 @@ class Projectenv():
             print(" -rp <'имя менеджера проекта для фильтра'>."
                   " Не обязательный.")
             print(" -n <номер_строки для фильтра>. Не обязательный.")
+            print(" -cv обновить все пользовательские поля  Не обязательный.")
             return False
         ok = self.db.get_user(self.user_token)
         if not ok:

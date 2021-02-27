@@ -177,7 +177,7 @@ class Spreadsheet():
             raise SpreadsheetNotSetError()
         if self.sheetTitle is None:
             raise SheetNotSetError()
-        getRes = []
+        getRes = {}
         if len(cellsRange) > 0:
             getRes = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheetId,
@@ -230,6 +230,39 @@ class Spreadsheet():
         if self.debugMode:
             pprint(getRes)
         return getRes["sheets"][0]["properties"]
+
+    def sheet_clear(self, cellsRange):
+        '''для отчищает диапазон на листе
+        '''
+        sheet_and_range = cellsRange.split("!")
+        if len(sheet_and_range) == 2:
+            self.sheetTitle = sheet_and_range[0]
+            cellsRange = sheet_and_range[1]
+        if self.spreadsheetId is None:
+            raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
+        getRes = None
+        if len(cellsRange) > 0:
+            getRes = self.service.spreadsheets().values().clear(
+                spreadsheetId=self.spreadsheetId,
+                range=self.sheetTitle + "!" + cellsRange).execute()
+            if self.debugMode:
+                pprint(getRes)
+        return getRes
+
+    def sheet_clear_all(self, name_sheet):
+        ''' отчищает весь лист
+        '''
+        self.sheetTitle = name_sheet
+        if self.spreadsheetId is None:
+            raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
+        start_column = "A"
+        max_column = self.max_column_get()
+        resp = self.sheet_clear(f"{start_column}:{max_column}")
+        return resp
 
     def read_color_cells(self, cellsRange):
         ''' возвращает список, элементы - строка

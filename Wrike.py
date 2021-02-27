@@ -144,20 +144,21 @@ class Wrike():
         '''
         task_params = self.make_params(locals(),
                                        ["self", "task_area", "task_params"])
-        task_params["pageSize"] = 1000
+        if task_area[0:6] != "tasks/":
+            task_params["pageSize"] = 1000
         resp = self.rs_get(task_area, arr="json", **task_params)
+        if task_area[0:6] != "tasks/":
+            del task_params['pageSize']
         data = []
         responseSize = resp.get("responseSize")
+        nextPageToken = resp.get("nextPageToken")
         data = resp.get("data")
         if responseSize:
-            while responseSize > 1000:
-                nextPageToken = resp["nextPageToken"]
+            while nextPageToken:
                 task_params["nextPageToken"] = nextPageToken
                 resp = self.rs_get(task_area, arr="json", **task_params)
-                responseSize = resp.get("responseSize")
                 data.extend(resp["data"])
-                if not responseSize:
-                    break
+                nextPageToken = resp.get("nextPageToken")
             return data
         else:
             if data:
@@ -297,7 +298,9 @@ class Wrike():
                          "Стратегическая группа", "Руководитель проекта",
                          "Клиент", "Бренд", "Код-1С", "Название рабочее",
                          "Группа", "Линейка", "Проект", "Технолог",
-                         "num_stage", "num_task", "Технология"]
+                         "num_stage", "num_task", "Технология",
+                         "Ссылка на проект НП", "М1", "М1 Ф", "М2",
+                         "Последний этап", "М2 Ф"]
 
         return_dict = {}
         for field in resp:

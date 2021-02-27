@@ -195,6 +195,7 @@ class Spreadsheet():
         ''' используем API spreadsheets
             для получения расширеннных данных из таблицы
         '''
+        getRes = []
         sheet_and_range = cellsRange.split("!")
         if len(sheet_and_range) == 2:
             self.sheetTitle = sheet_and_range[0]
@@ -203,15 +204,32 @@ class Spreadsheet():
             raise SpreadsheetNotSetError()
         if self.sheetTitle is None:
             raise SheetNotSetError()
-        getRes = {}
         if len(cellsRange) > 0:
             getRes = self.service.spreadsheets().get(
                 spreadsheetId=self.spreadsheetId,
                 ranges=self.sheetTitle + "!" + cellsRange,
                 includeGridData=True).execute()
-            if self.debugMode:
-                pprint(getRes)
-        return getRes["sheets"]
+        if self.debugMode:
+            pprint(getRes)
+        return getRes
+
+    def sheet_properies_get(self):
+        '''для получения инфомрации о листе из раздела
+            sheets properies
+        '''
+        if self.spreadsheetId is None:
+            raise SpreadsheetNotSetError()
+        if self.sheetTitle is None:
+            raise SheetNotSetError()
+
+        # получаем данные листа
+        getRes = self.service.spreadsheets().get(
+            spreadsheetId=self.spreadsheetId,
+            ranges=self.sheetTitle,
+            includeGridData=False).execute()
+        if self.debugMode:
+            pprint(getRes)
+        return getRes["sheets"][0]["properties"]
 
     def read_color_cells(self, cellsRange):
         ''' возвращает список, элементы - строка
@@ -222,9 +240,9 @@ class Spreadsheet():
             3 - значение в ячейке
         '''
         return_list = []
-        resp = self.sh_get(cellsRange)[0]  # был вариант API когда не список
-        # sh = resp["sheets"][0]
-        data = resp["data"][0]
+        resp = self.sh_get(cellsRange)
+        sh = resp["sheets"][0]
+        data = sh["data"][0]
         row_data = data.get("rowData", [])
         n = 0
         for row in row_data:
@@ -240,9 +258,24 @@ class Spreadsheet():
                 row_lst.append((bg_color, fnt_color, value))
         return return_list
 
+    def max_column_get(self):
+        ''' возвращает буквенный адрес последней колонки активного листа- AB
+        '''
+        resp = self.sheet_properies_get()
+        max_number = resp["gridProperties"]["columnCount"]
+        rangeAZ = range(ord('A'), ord('Z') + 1)
+        cont_symbol, num_symbol = divmod(max_number, 26)
+        second_symbol = ""
+        first_symbol = ""
+        if cont_symbol == 0:
+            first_symbol = chr(rangeAZ[max_number - 1])
+        else:
+            first_symbol = chr(rangeAZ[cont_symbol - 1])
+            second_symbol = chr(rangeAZ[num_symbol - 1])
+        return first_symbol + second_symbol
 
 # Функции тестирования класса
-'''CREDENTIALS_FILE = 'creds.json'
+'''  CREDENTIALS_FILE = 'creds.json'
 TABLE_ID_TEST = "1ftW9wEf-zGMTtIe_YIfZZxgomRBJhkXjnLe9Q4eKFpM"
 
 

@@ -76,13 +76,13 @@ class Projectenv():
         self.parent_id = None
         self.users_name = None
         self.users_id = None
-        self.users_name = None
-        self.users_id = None
+
 
         self.user_token = None
         self.rp_filter = None
         self.row_filter = None
         self.update_all_cv = None
+        self.what_do = "all"
 
         # обрабатываем список аргументов
         # 0 - сам скрипт
@@ -107,9 +107,11 @@ class Projectenv():
                 self.row_filter = int(line_argument.pop(2))
             if key == "-cv":
                 self.update_all_cv = True
+            if key == "-do":
+                self.what_do = line_argument.pop(2)
 
     def connect_db(self):
-        if self.user_token == "admin":
+        if self.user_token == "admin" or self.user_token == "help":
             self.OUT = "terminal"
             self.db = Baselog.Baselog(self.OUT, admin_mode=True)
         else:
@@ -127,12 +129,14 @@ class Projectenv():
         if not self.user_token:
             print("Укажите токен пользователя или help")
             return False
-        if self.user_token == "help" or self.user_token == "-h":
+        if self.user_token == "help":
             print(" user_token или help или admin. Обязательный параметр")
             print(" -rp <'имя менеджера проекта для фильтра'>."
                   " Не обязательный.")
             print(" -n <номер_строки для фильтра>. Не обязательный.")
             print(" -cv обновить все пользовательские поля  Не обязательный.")
+            print((" -do <all или sync или refl> Что выполнять."
+                   "Не обязательный."))
             return False
         ok = self.db.get_user(self.user_token)
         if not ok:
@@ -195,6 +199,9 @@ class Projectenv():
         if name_and_id:
             self.ss.sheetTitle = name_and_id[0]
             self.ss.sheetId = int(name_and_id[1])
+            return True
+        else:
+            return False
 
     def get_user_list(self, cell_user):
         ''' возвращает два словаря пользователей

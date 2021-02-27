@@ -4,6 +4,7 @@ import sys
 
 import Projectenv
 from time_func import now_str, make_date, read_date_for_project
+import strategy_transfer
 
 VERSION = '1.0'
 env = None  # объект для параметров проекта
@@ -548,10 +549,15 @@ def main():
     env.sheet_now("work_sheet")
 
     env.print_ss(f"Обновление началось {now_str()}", env.cell_log)
-    folders = create_folder_in_parent()
 
-    sync_google_wrike(folders)
+    if env.what_do == "all" or env.what_do == "sync":
+        folders = create_folder_in_parent()
+        sync_google_wrike(folders)
 
+    if env.what_do == "all" or env.what_do == "refl":
+        strategy_transfer.start_reflect(env)
+
+    env.sheet_now("work_sheet")
     t_finish = time.time()
     m = f"Выполненно за: {int(t_finish - t_start)} с. {now_str()}"
     env.db.out(m)

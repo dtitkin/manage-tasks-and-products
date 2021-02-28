@@ -364,7 +364,7 @@ class Projectenv():
                 if len(nrt) > 0 and nrt.isdigit():
                     adr = f"{self.column_id}{nrt}:{self.column_id}{nrt}"
                     p_t = self.ss.values_get(adr)[0][0]
-                    if not p_t:
+                    if not p_t and return_dict["comand"] == "G":
                         self.db.out(f"в строке {nrt} нет шаблона",
                                     num_row=num_row,
                                     runtime_error="y",

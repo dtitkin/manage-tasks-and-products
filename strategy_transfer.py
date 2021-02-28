@@ -5,16 +5,15 @@
 '''
 from datetime import date
 from time_func import make_date
-import pdb
 
 env = None  # объект для параметров проекта
 
 
 def create_milestone(name_project, permalink_project,
-                     start_stage, end_stage, name_folder,
+                     stages_from_row, name_folder,
                      permalink_folder, name_user):
     ''' Создаем вехи если их нет под каждый проект в терминах таблицы
-        возвращаем ID вехи, id подзадач, id gfgrb
+        возвращаем ID вехи, id подзадач, id папки
     '''
     resp = env.wr.get_folders("folders", permalink=permalink_folder)
     if len(resp) == 0:
@@ -29,6 +28,13 @@ def create_milestone(name_project, permalink_project,
     resp = env.wr.get_tasks(f"folders/{id_folder}/tasks", type="Milestone",
                             customField=cf, fields=fields)
     sub_tasks = []
+    if len(stages_from_row) > 1:
+        start_stage = stages_from_row[0]
+        end_stage = stages_from_row[-1]
+        name_task = name_project + f" этапы с {start_stage} по {end_stage}"
+    else:
+        end_stage = stages_from_row[0]
+        name_task = name_project + f" этап {end_stage}"
     if len(resp) == 0:
         # нужной вехи нет. создаем ее
         add_user = env.users_name.get(name_user)
@@ -38,10 +44,6 @@ def create_milestone(name_project, permalink_project,
                        error_type="перенос проектов в стратегию")
             return False, False, False
         add_user = [add_user["id"]]
-        if start_stage:
-            name_task = name_project + f" этапы с {start_stage} по {end_stage}"
-        else:
-            name_task = name_project + f" этап {end_stage}"
         now_date = date.today()
         dt = env.wr.dates_arr(type_="Milestone", due=now_date.isoformat())
         cfd = {"Ссылка на проект НП": permalink_project, "М1": 1}
@@ -61,10 +63,6 @@ def create_milestone(name_project, permalink_project,
     else:
         sub_tasks = resp[0]["subTaskIds"]
         # обновим имя если в настройках изменились этапы
-        if start_stage:
-            name_task = name_project + f" этапы с {start_stage} по {end_stage}"
-        else:
-            name_task = name_project + f" этап {end_stage}"
         if name_task != resp[0]["title"]:
             cfd = {"Ссылка на проект НП": permalink_project, "М1": 1}
             cfd["Последний этап"] = end_stage
@@ -80,23 +78,10 @@ def create_milestone(name_project, permalink_project,
     return resp[0], sub_tasks, id_folder
 
 
-def folder_needs_stage(num_stage, start_stage, end_stage):
-    num_stage = int(num_stage)
-    if start_stage:
-        condition_1 = num_stage >= int(start_stage)
-        condition_2 = num_stage <= int(end_stage)
-        if not (condition_1 and condition_2):
-            return False
-    else:
-        if num_stage != int(end_stage):
-            return False
-    return True
+def delete_stage(task_param, stages_from_row, strat_task):
+    num_stage = task_param["num_stage"]
 
-
-def delete_stage(task_param, start_stage, end_stage, strat_task):
-    num_stage = int(task_param["num_stage"])
-    in_folder = folder_needs_stage(num_stage, start_stage, end_stage)
-    if not in_folder:
+    if num_stage not in stages_from_row:
         m = f"Стратегия: удаляем {strat_task['title']}"
         env.print_ss(m, env.cell_log)
         env.db.out(m)
@@ -111,8 +96,7 @@ def delete_stage(task_param, start_stage, end_stage, strat_task):
 
 
 def duplicate_stage(milestone, task_from_project, sub_tasks,
-                    min_date, max_date, name_user, id_folder, start_stage,
-                    end_stage):
+                    min_date, max_date, name_user, id_folder, stages_from_row):
 
     def create_name(task_param):
         name_task = task_param["Название рабочее"]
@@ -142,13 +126,11 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
                 last_date = task_param["due"]
 
             # удаляем этап если в настройка поменяли
-            if delete_stage(task_param, start_stage, end_stage, strat_task):
+            if delete_stage(task_param, stages_from_row, strat_task):
                 continue
             # обновляем этап если есть изменения
-            due_date = strat_task["dates"]["due"]
             status = strat_task["status"]
-            y, m, d = due_date[0:10].split("-")
-            strat_date = date(int(y), int(m), int(d))
+            strat_date = make_date(strat_task["dates"]["due"])
             strat_name = strat_task["title"]
             name_task = create_name(task_param)
 
@@ -181,22 +163,17 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
                     task_param["in_folder_err"] = True
 
     # создаем вехи которых нет
-    date_from_new = False
     for link_on_task, task_param in task_from_project.items():
         if task_param["in_folder"] or task_param["in_folder_err"]:
             continue
         # создаем веху
-        # проверяем сначала по номерам этапов
-        num_stage = int(task_param["num_stage"])
-        in_folder = folder_needs_stage(num_stage, start_stage, end_stage)
-        if not in_folder:
+        # проверяем  по номерам этапов, не проверяем на даты
+        num_stage = task_param["num_stage"]
+        if num_stage not in stages_from_row:
             continue
         now_date = task_param["due"]
-        if not (now_date >= min_date and now_date <= max_date):
-            continue
         if now_date > last_date:
             last_date = now_date
-            date_from_new = True
         st = [milestone["id"]]
         name_task = create_name(task_param)
         dt = env.wr.dates_arr(type_="Milestone", due=now_date.isoformat())
@@ -218,14 +195,15 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
                        error_type="перенос проектов в стратегию")
     # обновим главную веху по статусу всех последних этапов
     # даты у вехи в стратегии меняем только если создали новые вехи
+    if last_date > max_date:
+        last_date = max_date
     status_m = milestone["status"]
+    date_m = make_date(milestone["dates"]["due"])
     one_status = None
     resp_cf = milestone["customFields"]
     end_stage = env.find_cf(resp_cf, "Последний этап")
     for link_on_task, task_param in task_from_project.items():
         now_date = task_param["due"]
-        if not (now_date >= min_date and now_date <= max_date):
-            continue
         if task_param["num_stage"] == end_stage:
             now_status = task_param["status"]
             if one_status is None:
@@ -235,17 +213,13 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
                 one_status = False
                 break
 
-    if (one_status and one_status != status_m) or date_from_new:
+    if (one_status and one_status != status_m) or (last_date != date_m):
         if one_status == "Completed":
             cfd = {"М1 Ф": 1}
         else:
             cfd = {"М1 Ф": 0}
-
         cf = env.wr.custom_field_arr(cfd)
-        dt = None
-        if date_from_new:
-            dt = env.wr.dates_arr(type_="Milestone",
-                                  due=last_date.isoformat())
+        dt = env.wr.dates_arr(type_="Milestone", due=last_date.isoformat())
         resp = env.wr.update_task(milestone["id"], status=one_status,
                                   customFields=cf, dates=dt)
         if len(resp) == 0:
@@ -273,11 +247,9 @@ def read_all_tasks(name_project, permalink_project):
         num_task = env.find_cf(resp_cf, "num_task")
         product = env.find_cf(resp_cf, "Название рабочее")
         if num_task[0:2] == "00" and len(num_stage) == 1:
-            due_date = task["dates"]["due"]
             status = task["status"]
             permalink_task = task["permalink"]
-            y, m, d = due_date[0:10].split("-")
-            stage_date = date(int(y), int(m), int(d))
+            stage_date = make_date(task["dates"]["due"])
             return_dict[permalink_task] = {}
             return_dict[permalink_task]["due"] = stage_date
             return_dict[permalink_task]["status"] = status
@@ -296,6 +268,7 @@ def reflect_milestone():
     env.sheet_now("project_sheet")
     max_column = env.ss.max_column_get()
     table = env.ss.values_get(f"B24:{max_column}200")
+    env.sheet_now("work_sheet")
 
     for row in table[6:]:
         if len(row) == 0:
@@ -309,20 +282,15 @@ def reflect_milestone():
             tasks_from_project = read_all_tasks(name_project,
                                                 permalink_project)
             if not tasks_from_project:
-                continue
+                tasks_from_project = {}
         else:
             continue
         for num_column, column in enumerate(row[5:], 5):
             if not column:
                 continue
 
-            # print(name_project, permalink_project, column,
-            #      table[0][num_column], table[1][num_column])
-            if column.find(",") != -1:
-                start_stage, end_stage = column.split(",")
-            else:
-                start_stage = None
-                end_stage = column
+            stages_from_row = column.split(";")
+
             name_user = table[2][num_column]
             name_folder = table[3][num_column]
             permalink_folder = table[4][num_column]
@@ -330,17 +298,20 @@ def reflect_milestone():
             max_date = make_date(table[1][num_column])
 
             # проверяем наличие вехи в стартегической папке и создаем если нет
-            env.sheet_now("work_sheet")
+
             tpl = create_milestone(name_project, permalink_project,
-                                   start_stage, end_stage, name_folder,
+                                   stages_from_row, name_folder,
                                    permalink_folder, name_user)
             milestone, sub_tasks, id_folder = tpl
             if not milestone:
                 continue
             # находим у проекта вехи и дублируем их в milestone
+            m = f"Стратегия: проверяем вехи в  {name_project}"
+            env.print_ss(m, env.cell_log)
+            env.db.out(m)
             duplicate_stage(milestone, tasks_from_project, sub_tasks,
                             min_date, max_date, name_user, id_folder,
-                            start_stage, end_stage)
+                            stages_from_row)
 
 
 def start_reflect(ext_env):

@@ -11,17 +11,26 @@ def now_str():
 
 
 def make_date(usr_date):
+    format_user_date = None
     if not usr_date:
         return date.today()
     if usr_date.find(".") > -1:
         lst_date = usr_date[0:10].split(".")
+        format_user_date = 1
     elif usr_date.find("/") > -1:
         lst_date = usr_date[0:10].split("/")
+        format_user_date = 1
+    elif usr_date.find("-") > -1:
+        lst_date = usr_date[0:10].split("-")
+        format_user_date = 2
     else:
         return date.today()
-    if len(lst_date[2]) == 2:
-        lst_date[2] = "20" + lst_date[2]
-    return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
+    if format_user_date == 1:
+        if len(lst_date[2]) == 2:
+            lst_date[2] = "20" + lst_date[2]
+        return date(int(lst_date[2]), int(lst_date[1]), int(lst_date[0]))
+    else:
+        return date(int(lst_date[0]), int(lst_date[1]), int(lst_date[2]))
 
 
 def read_date_for_project(end_stage, len_stage, holydays):

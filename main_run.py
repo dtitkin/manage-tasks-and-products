@@ -450,7 +450,10 @@ def sync_google_wrike(folders):
             env.db.out("Обновление задач в проекте", num_row=num_row)
 
             # считываем статусы и даты этапов из таблицы
-            finish_status, dates_stage = read_stage_info(num_row)
+            finish_status = None
+            dates_stage = None
+            if not row_project["template_id"]:
+                finish_status, dates_stage = read_stage_info(num_row)
             # обновляем задачи с учетом всех статусов
             ok = update_sub_task(id_and_cfd, row_project["rp"],
                                  row_project["tech"], num_row,

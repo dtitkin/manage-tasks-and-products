@@ -99,7 +99,7 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
                     min_date, max_date, name_user, id_folder, stages_from_row):
 
     def create_name(task_param):
-        name_task = task_param["Название рабочее"]
+        name_task = task_param["Название рабочее"].strip("\n ")
         name_task += f" -{task_param['title']}"
         return name_task
 
@@ -138,6 +138,7 @@ def duplicate_stage(milestone, task_from_project, sub_tasks,
             ok_status = (status != task_param["status"])
             ok_name = (strat_name != name_task)
             task_param["in_folder"] = True
+
             if ok_due or ok_status or ok_name:
                 m = f"Стратегия: обновляем {strat_task['title']}"
                 env.print_ss(m, env.cell_log)

@@ -4,7 +4,8 @@ import sys
 
 import Projectenv
 from time_func import now_str, make_date, read_date_for_project
-import strategy_transfer
+import strategy_transfer, report
+
 
 VERSION = '1.0'
 env = None  # объект для параметров проекта
@@ -426,7 +427,7 @@ def sync_google_wrike(folders):
     table = env.get_work_table()
     for num_row, row_project in table.items():
         chek_old_session(row_project, num_row)
-        if row_project["comand"] == "G":
+        if row_project["comand"] == "G" and env.what_do != "W":
             ok = test_all_parametr(row_project, num_row)
             if not ok:
                 continue
@@ -465,7 +466,7 @@ def sync_google_wrike(folders):
                            error_type="ошибка обновления задач")
                 return False
             ok = write_date_to_google(num_row, id_and_cfd[0])
-        elif row_project["comand"] == "W":
+        elif row_project["comand"] == "W" and env.what_do == "W":
             # обновление дат в гугл и признака выполенно
             m = (f"Обновляем даты #{num_row} {row_project['code']}"
                  f" {row_project['product']}")
@@ -477,7 +478,7 @@ def sync_google_wrike(folders):
             env.db.out(m, num_row=num_row, prn_time=True)
             ok = if_edit_table(num_row, row_project, folders)
 
-        elif row_project["comand"] == "A":
+        elif row_project["comand"] == "A" and env.what_do != "W":
             # удаляем проект из Wrike если он там есть
             if row_project["id_project"]:
                 m = (f"Удаляем проект #{num_row} {row_project['code']}"
@@ -553,11 +554,13 @@ def main():
 
     env.print_ss(f"Обновление началось {now_str()}", env.cell_log)
 
-    if env.what_do == "all" or env.what_do == "sync":
+    if env.what_do == "sync" or env.what_do == "W":
         folders = create_folder_in_parent()
         sync_google_wrike(folders)
 
-    if env.what_do == "all" or env.what_do == "refl":
+    if env.what_do == "W" or env.what_do == "R":
+        report.create_report_table(Projectenv, sys.argv)
+    if env.what_do == "W" or env.what_do == "refl":
         strategy_transfer.start_reflect(env)
 
     env.sheet_now("work_sheet")

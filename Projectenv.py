@@ -23,6 +23,7 @@ class Projectenv():
         cfg.read('settings.cfg')
         # spreadsheet секция
         self.TABLE_ID = cfg["spreadsheet"]["gogletableid"]
+        self.REPORT_ID = cfg["spreadsheet"]["gogletableid_report"]
         self.cell_color = cfg["spreadsheet"]["cell_color"]
         self.cell_calendar = cfg["spreadsheet"]["cell_calendar"]
         self.cell_user = cfg["spreadsheet"]["cell_user"]
@@ -32,6 +33,10 @@ class Projectenv():
 
         self.sheets["project_sheet"] = (cfg["spreadsheet"]["project_sheet"],
                                         cfg["spreadsheet"]["project_sheet_id"])
+
+        self.sheets["report_stages"] = (cfg["spreadsheet"]["report_stages"],
+                                        cfg["spreadsheet"]["report_stages_id"])
+
         self.column_project = cfg["spreadsheet"]["column_project"]
         self.table_project = cfg["spreadsheet"]["table_project"]
         self.table_params = cfg["spreadsheet"]["table_params"]
@@ -77,12 +82,11 @@ class Projectenv():
         self.users_name = None
         self.users_id = None
 
-
         self.user_token = None
         self.rp_filter = None
         self.row_filter = None
         self.update_all_cv = None
-        self.what_do = "all"
+        self.what_do = "sync"
 
         # обрабатываем список аргументов
         # 0 - сам скрипт
@@ -135,8 +139,12 @@ class Projectenv():
                   " Не обязательный.")
             print(" -n <номер_строки для фильтра>. Не обязательный.")
             print(" -cv обновить все пользовательские поля  Не обязательный.")
-            print((" -do <all или sync или refl> Что выполнять."
+            print((" -do <sync, refl, W, R> Что выполнять."
                    "Не обязательный."))
+            print("   sync - тольк синхронизация wrike из Гугл")
+            print("   refl - только отражение вех в стратегии")
+            print("   W - обновление дат в Гугл и заполнение отчетов")
+            print("   R - только заполнение отчетов")
             return False
         ok = self.db.get_user(self.user_token)
         if not ok:
@@ -147,12 +155,12 @@ class Projectenv():
                 self.rp_filter = self.db.rp_filter
             return True
 
-    def connect_spreadsheet(self):
+    def connect_spreadsheet(self, tableid=None):
         self.db.out("Приосоединяемся к Гугл")
         self.ss = Spreadsheet.Spreadsheet(self.CREDENTIALS_FILE)
-        self.ss.set_spreadsheet_byid(self.TABLE_ID)
-        del self.TABLE_ID
-        del self.CREDENTIALS_FILE
+        if not tableid:
+            tableid = self.TABLE_ID
+        self.ss.set_spreadsheet_byid(tableid)
         # доделать с исключениеями
         return True
 

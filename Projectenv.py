@@ -153,6 +153,8 @@ class Projectenv():
         else:
             if self.db.rp_filter and self.rp_filter is None:
                 self.rp_filter = self.db.rp_filter
+            if self.db.argv:
+                 self.what_do = self.db.argv.split(" ")[1]
             return True
 
     def connect_spreadsheet(self, tableid=None):

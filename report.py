@@ -62,6 +62,7 @@ def report_from_stages_dates():
                 due = due[0:10]
                 lst_line = [project, product, rp, tech, strat, group, line,
                             supl, brand, stage, num_stage, status, due]
+                lst_line = [x.strip("\n ") for x in lst_line]
                 lst_out.append(lst_line)
     # разместим в гугл таблице
     # отчистим все что было ранее
@@ -93,4 +94,6 @@ def create_report_table(Projectenv, argv):
     env.parent_id = parent["id"]
 
     env.sheet_now("report_stages")
+    env.db.out("Обновление отчетов")
     report_from_stages_dates()
+    env.db.out("Обновление отчетов завершено")

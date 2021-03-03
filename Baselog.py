@@ -21,6 +21,8 @@ class Baselog():
         self.email_user = None
         self.admin_mode = admin_mode
         self.rp_filter = None
+        self.argv = None
+
         self.sql_add_user = None
         self.sql_add_log = None
         self.sql_upd_log = None
@@ -179,6 +181,7 @@ class Baselog():
             self.name_user = rows[1]
             self.email_user = rows[2]
             self.rp_filter = rows[4]
+            self.argv = rows[5]
             return True
 
 

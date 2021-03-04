@@ -86,7 +86,7 @@ class Projectenv():
         self.rp_filter = None
         self.row_filter = None
         self.update_all_cv = None
-        self.what_do = "sync"
+        self.what_do = "G,A,F"
 
         # обрабатываем список аргументов
         # 0 - сам скрипт
@@ -139,12 +139,16 @@ class Projectenv():
                   " Не обязательный.")
             print(" -n <номер_строки для фильтра>. Не обязательный.")
             print(" -cv обновить все пользовательские поля  Не обязательный.")
-            print((" -do <sync, refl, W, R> Что выполнять."
+            print((" -do <G,A,W,F,R,S> Что выполнять. одно или несколько"
                    "Не обязательный."))
-            print("   sync - тольк синхронизация wrike из Гугл")
-            print("   refl - только отражение вех в стратегии")
-            print("   W - обновление дат в Гугл и заполнение отчетов")
-            print("   R - только заполнение отчетов")
+            print("    G  - загружать проекты из Гугл во wrike")
+            print("    A  - удалять проекты во wrike ")
+            print("    W  - обновление дат в Гугл")
+            print("    M  - обновление вех wrike")
+            print("    F  - проверка полей в таблице и обновление задач")
+            print("    R  - заполнение отчетов")
+            print("    S  - отразить в стратегии")
+
             return False
         ok = self.db.get_user(self.user_token)
         if not ok:
@@ -154,8 +158,20 @@ class Projectenv():
             if self.db.rp_filter and self.rp_filter is None:
                 self.rp_filter = self.db.rp_filter
             if self.db.argv:
-                 self.what_do = self.db.argv.split(" ")[1]
+                self.what_do = self.db.argv.split(" ")[1]
             return True
+
+    def compare_param(self, param):
+        ''' для сравнения параметров указанных при запуске
+            и параметров исполнения внутри основного модуля
+        '''
+        st_self = set(self.what_do)
+        st_param = set(param)
+        new_set = st_param.intersection(st_self)
+        if len(new_set) > 0:
+            return True
+        else:
+            return False
 
     def connect_spreadsheet(self, tableid=None):
         self.db.out("Приосоединяемся к Гугл")

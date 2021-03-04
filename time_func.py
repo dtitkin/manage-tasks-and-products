@@ -10,7 +10,7 @@ def now_str():
     return str_now
 
 
-def make_date(usr_date):
+def make_date(usr_date=None):
     format_user_date = None
     if not usr_date:
         return date.today()

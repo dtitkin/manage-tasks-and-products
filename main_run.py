@@ -1,10 +1,12 @@
 
 import time
 import sys
+from collections import OrderedDict
 
 import Projectenv
 from time_func import now_str, make_date, read_date_for_project
-import strategy_transfer, report
+import strategy_transfer
+import report
 
 
 VERSION = '1.0'
@@ -177,6 +179,89 @@ def write_date_to_google(num_row, project_id):
         env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
     env.ss.run_prepared()
     return True
+
+
+def sorted_tasks(task, all_task):
+    '''ищет рекусрсивно у вех подзадачи
+      расставлет  в порядке обработки вложенные вехи раньше
+      родительской вехи
+    '''
+    sort_task = OrderedDict({})
+    sub_task = task["subTaskIds"]
+    for st in sub_task:
+        st_param = all_task.get(st)
+        if st_param:
+            if st_param["dates"]["type"] == "Milestone":
+                sort_task.update(sorted_tasks(st_param, all_task))
+                sort_task[st_param["id"]] = st_param
+    sort_task[task["id"]] = task
+    return sort_task
+
+
+def close_move_stage(num_row, project_id):
+    ''' устанавливает статус выполненно или переносит веху на дату выполнения
+    '''
+    fields = ["customFields", "subTaskIds"]
+    resp = env.wr.get_tasks(f"folders/{project_id}/tasks", subTasks="True",
+                            fields=fields)
+    sort_task = OrderedDict({})
+    all_task = {task["id"]: task for task in resp}
+    for task in resp:
+        if task["dates"]["type"] != "Milestone":
+            continue
+        if sort_task.get(task["id"]):
+            continue
+        sort_task.update(sorted_tasks(task, all_task))
+
+    for k, task in sort_task.items():
+        # по каждой вехе смотрим выполненны ли все подчиненные
+        # ищем их в all_task, если веху обновляем то менем ее в all task
+        all_status = []
+        task_date = make_date(task["dates"]["due"])
+        max_date = task_date
+        sub_task = task["subTaskIds"]
+        for st in sub_task:
+            st_param = all_task.get(st)
+            if not st_param:
+                continue
+            status = st_param["status"]
+            if status not in all_status:
+                all_status.append(status)
+            due = st_param["dates"].get("due")
+            if due:
+                due = make_date(due)
+                if due > max_date:
+                    max_date = due
+
+        set_status = None
+        if len(all_status) == 1:
+            if all_status[0] != task["status"]:
+                set_status = all_status[0]
+        else:
+            if "Active" in all_status:
+                set_status = "Active"
+
+        if set_status == task["status"]:
+            set_status = None
+        dt = None
+        now_date = make_date()
+        if task["status"] == "Active" or set_status == "Active":
+            if now_date > task_date:
+                dt = env.wr.dates_arr(type_="Milestone",
+                                      due=now_date.isoformat())
+
+        if set_status == "Completed":
+            dt = env.wr.dates_arr(type_="Milestone",
+                                  due=max_date.isoformat())
+        if set_status or dt:
+            resp = env.wr.update_task(task["id"], dates=dt, status=set_status)
+            if len(resp) == 0:
+                env.db.out(f"не обновляется {task['title']}",
+                           num_row=num_row,
+                           runtime_error="y", error_type="ошибка записи Wrike")
+            task_in_all = all_task.get(task["id"])
+            if task_in_all:
+                task_in_all["status"] = resp[0]["status"]
 
 
 def new_tech(id_project, resp_cf, technologist):
@@ -427,7 +512,7 @@ def sync_google_wrike(folders):
     table = env.get_work_table()
     for num_row, row_project in table.items():
         chek_old_session(row_project, num_row)
-        if row_project["comand"] == "G" and env.what_do != "W":
+        if row_project["comand"] == "G" and env.compare_param("G"):
             ok = test_all_parametr(row_project, num_row)
             if not ok:
                 continue
@@ -466,19 +551,31 @@ def sync_google_wrike(folders):
                            error_type="ошибка обновления задач")
                 return False
             ok = write_date_to_google(num_row, id_and_cfd[0])
-        elif row_project["comand"] == "W" and env.what_do == "W":
+
+        if row_project["comand"] == "W" and env.compare_param("M"):
+            # изменение статуса и даты у вех
+            m = (f"Проверяем вехи #{num_row} {row_project['code']}"
+                 f" {row_project['product']}")
+            env.print_ss(m, env.cell_log)
+            env.db.out(m, num_row=num_row, prn_time=True)
+            close_move_stage(num_row, row_project["id_project"])
+
+        if row_project["comand"] == "W" and env.compare_param("W"):
             # обновление дат в гугл и признака выполенно
             m = (f"Обновляем даты #{num_row} {row_project['code']}"
                  f" {row_project['product']}")
             env.print_ss(m, env.cell_log)
             env.db.out(m, num_row=num_row, prn_time=True)
             ok = write_date_to_google(num_row, row_project["id_project"])
+
+        if row_project["comand"] == "W" and env.compare_param("F"):
+            # проверка на изменение полей в таблице
             m = (f"Проверяем колонки #{num_row} {row_project['code']}"
                  f" {row_project['product']}")
             env.db.out(m, num_row=num_row, prn_time=True)
             ok = if_edit_table(num_row, row_project, folders)
 
-        elif row_project["comand"] == "A" and env.what_do != "W":
+        if row_project["comand"] == "A" and env.compare_param("A"):
             # удаляем проект из Wrike если он там есть
             if row_project["id_project"]:
                 m = (f"Удаляем проект #{num_row} {row_project['code']}"
@@ -554,13 +651,13 @@ def main():
 
     env.print_ss(f"Обновление началось {now_str()}", env.cell_log)
 
-    if env.what_do == "sync" or env.what_do == "W":
+    if env.compare_param("GAWFM"):
         folders = create_folder_in_parent()
         sync_google_wrike(folders)
 
-    if env.what_do == "W" or env.what_do == "R":
+    if env.compare_param("R"):
         report.create_report_table(Projectenv, sys.argv)
-    if env.what_do == "W" or env.what_do == "refl":
+    if env.compare_param("S"):
         strategy_transfer.start_reflect(env)
 
     env.sheet_now("work_sheet")

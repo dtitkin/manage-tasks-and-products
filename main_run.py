@@ -237,6 +237,9 @@ def close_move_stage(num_row, project_id):
         if len(all_status) == 1:
             if all_status[0] != task["status"]:
                 set_status = all_status[0]
+        elif len(all_status) == 2:
+            if "Completed" in all_status and "Cancelled" in all_status:
+                set_status = "Completed"
         else:
             if "Active" in all_status:
                 set_status = "Active"

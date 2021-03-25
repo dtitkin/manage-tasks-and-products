@@ -387,10 +387,11 @@ class Projectenv():
             return_dict["template_str"] = None
             if len(row_project) == 11:
                 nrt = row_project[10]
-                if len(nrt) > 0 and nrt.isdigit():
+                g_in_comand = return_dict["comand"] == "G"
+                if len(nrt) > 0 and nrt.isdigit() and g_in_comand:
                     adr = f"{self.column_id}{nrt}:{self.column_id}{nrt}"
                     p_t = self.ss.values_get(adr)[0][0]
-                    if not p_t and return_dict["comand"] == "G":
+                    if not p_t:
                         self.db.out(f"в строке {nrt} нет шаблона",
                                     num_row=num_row,
                                     runtime_error="y",

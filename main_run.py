@@ -613,8 +613,6 @@ def create_folder_in_parent():
         name_project = project[0]
         if env.row_filter and filter_project != name_project:
             continue
-        if len(name_project) > 0:
-            name_project = name_project
         wrike_link = ""
         if len(project) == 4:
             wrike_link = project[3]

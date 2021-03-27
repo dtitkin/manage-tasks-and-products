@@ -324,7 +324,8 @@ class Projectenv():
         ''' забираем из Гугл таблицу проектов
         '''
         self.sheet_now("project_sheet")
-        return self.ss.values_get(self.table_project)
+        table = self.ss.values_get(self.table_project)
+        return table
 
     def update_project_name(self, wrike_link, name_project, num_row):
         ''' обновляет название папки-проекта из таблицы

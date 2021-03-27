@@ -207,7 +207,6 @@ class Wrike():
                     customField=None, updatedDate=None, project=None,
                     deleted=None, fields=None):
         '''Получить папку/проект
-
            folderarea - folders
                         folders/{folderId}/folders
                         spaces/{spaceId}/folders
@@ -360,17 +359,15 @@ class Wrike():
             return_descr += "<li>" + one_str + "</li>"
         return return_descr
 
-    def id_contacts_on_email(self, email_list):
-        ''' по списку email  возвращает такой же по размеру список id
-            None там где не нашел email
+    def id_contacts(self):
+        '''возвращает id всех пользователей Wrike
         '''
         resp = self.rs_get("contacts")
-        id_dict = {mail: None for mail in email_list}
+        id_dict = {}
         for user in resp:
             if user['type'] == 'Person':
                 user_mail = user["profiles"][0]["email"]
-                if user_mail in email_list:
-                    id_dict[user_mail] = user["id"]
+                id_dict[user_mail] = user["id"]
         if self.debugMode:
             pprint(id_dict)
         return id_dict

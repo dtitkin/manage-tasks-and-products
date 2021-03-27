@@ -238,6 +238,7 @@ class Projectenv():
             for user_name, user_val, in users_from_name.items():
                 if user_val["email"] == email:
                     return user_name, user_val["group"]
+            return "", ""
 
         table = self.ss.values_get(cell_user)
         users_from_id = {}
@@ -251,15 +252,16 @@ class Projectenv():
             users_from_name[row[0]]["group"] = row[1].strip(" ")
             users_from_name[row[0]]["email"] = row[2].strip(" ")
             lst_mail.append(row[2])
-        id_dict = self.wr.id_contacts_on_email(lst_mail)
+        id_dict = self.wr.id_contacts()
         for email, id_user in id_dict.items():
-            if email in lst_mail and id_user is not None:
-                users_from_id[id_user] = {}
-                users_from_id[id_user]["email"] = email
-                name_user, gr_user = find_name_from_email(email,
-                                                          users_from_name)
-                users_from_id[id_user]["name"] = name_user
-                users_from_id[id_user]["group"] = gr_user
+            users_from_id[id_user] = {}
+            users_from_id[id_user]["email"] = email
+            name_user, gr_user = find_name_from_email(email,
+                                                      users_from_name)
+
+            users_from_id[id_user]["name"] = name_user
+            users_from_id[id_user]["group"] = gr_user
+            if name_user:
                 users_from_name[name_user]["id"] = id_user
 
         # найдем помошника менеджера и запишем его к менеджеру
@@ -387,32 +389,24 @@ class Projectenv():
             return_dict["template_str"] = None
             if len(row_project) == 11:
                 nrt = row_project[10]
-                g_in_comand = return_dict["comand"] == "G"
-                if len(nrt) > 0 and nrt.isdigit() and g_in_comand:
-                    adr = f"{self.column_id}{nrt}:{self.column_id}{nrt}"
-                    p_t = self.ss.values_get(adr)[0][0]
-                    if not p_t:
-                        self.db.out(f"в строке {nrt} нет шаблона",
-                                    num_row=num_row,
-                                    runtime_error="y",
-                                    error_type="ошибка шаблона")
-                    else:
-                        return_dict["template_id"] = p_t
-                        return_dict["template_str"] = nrt
+                return_dict["template_str"] = nrt
+
             return return_dict
+
         return_dict = {}
         self .sheet_now("work_sheet")
         table_id = self.ss.values_get(self.table_params)
         table_project = self.ss.values_get(self.table_plan)
+
         num_row = int(self.start_work_table)
-        if self.row_filter:
-            if self.row_filter <= len(table_project):
-                table_project = [table_project[self.row_filter - 1]]
-                num_row = self.row_filter - 1
-            else:
-                return return_dict
-        else:
-            table_project = table_project[19:]
+        # if self.row_filter:
+        #    if self.row_filter <= len(table_project):
+        #        table_project = [table_project[self.row_filter - 1]]
+        #        num_row = self.row_filter - 1
+        #    else:
+        #        return return_dict
+        # else:
+        table_project = table_project[19:]
         for row_project in table_project:
             num_row += 1
             if len(row_project) == 0:
@@ -423,13 +417,32 @@ class Projectenv():
                 row_id = table_id[num_row - 1]
             if len(row_id) < 30:
                 row_id.extend(["" for x in range(0, 30 - len(row_id))])
+            # if row_project[0] and row_project[0] in "GAPWN":
+            #    if self.rp_filter:
+            #        if row_id[5] != self.rp_filter:
+            #            continue
+            c_v = make_dict_from_column(row_id, row_project, num_row)
+            return_dict[num_row] = c_v.copy()
 
-            if row_project[0] and row_project[0] in "GAPWN":
-                if self.rp_filter:
-                    if row_id[5] != self.rp_filter:
-                        continue
-                c_v = make_dict_from_column(row_id, row_project, num_row)
-                return_dict[num_row] = c_v.copy()
+        for key, value in return_dict.items():
+            if value["template_str"]:
+                try:
+                    nrt = int(value["template_str"])
+                except ValueError:
+                    nrt = 0
+                if nrt > 0 and value["comand"] == "G":
+                    row = return_dict.get(nrt)
+                    id_template = None
+                    if row:
+                        id_template = row["id_project"]
+                    if not id_template:
+                        self.db.out(f"в строке {nrt} нет шаблона",
+                                    num_row=key,
+                                    runtime_error="y",
+                                    error_type="ошибка шаблона")
+                    else:
+                        return_dict[key]["template_id"] = id_template
+
         return return_dict
 
     def get_len_stage(self, num_stage, num_template="#1"):

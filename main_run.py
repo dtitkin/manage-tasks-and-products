@@ -514,6 +514,11 @@ def sync_google_wrike(folders):
     env.db.out("Синхронизация Гугл и Wrike", prn_time=True)
     table = env.get_work_table()
     for num_row, row_project in table.items():
+        if env.row_filter and num_row != env.row_filter:
+            continue
+        if env.rp_filter and env.rp_filter != row_project["rp"]:
+            continue
+
         chek_old_session(row_project, num_row)
         if row_project["comand"] == "G" and env.compare_param("G"):
             ok = test_all_parametr(row_project, num_row)

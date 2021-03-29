@@ -564,7 +564,7 @@ def sync_google_wrike(folders):
             # изменение статуса и даты у вех
             m = (f"Проверяем вехи #{num_row} {row_project['code']}"
                  f" {row_project['product']}")
-            env.print_ss(m, env.cell_log)
+            env.print_ss(m, env.cell_log, True)
             env.db.out(m, num_row=num_row, prn_time=True)
             close_move_stage(num_row, row_project["id_project"])
 
@@ -572,7 +572,7 @@ def sync_google_wrike(folders):
             # обновление дат в гугл и признака выполенно
             m = (f"Обновляем даты #{num_row} {row_project['code']}"
                  f" {row_project['product']}")
-            env.print_ss(m, env.cell_log)
+            env.print_ss(m, env.cell_log, True)
             env.db.out(m, num_row=num_row, prn_time=True)
             ok = write_date_to_google(num_row, row_project["id_project"])
 

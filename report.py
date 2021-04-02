@@ -44,7 +44,7 @@ def report_from_stages_dates():
                     req = "folders/" + req[:-1]
                     resp_f = env.wr.get_folders(req)
                     for folder in resp_f:
-                        if folder.get["project"]:
+                        if folder.get("project"):
                             resp_cf = folder["customFields"]
                             project = env.find_cf(resp_cf, "Проект")
                             product = env.find_cf(resp_cf, "Название рабочее")

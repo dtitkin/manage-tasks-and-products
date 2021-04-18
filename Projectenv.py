@@ -36,6 +36,8 @@ class Projectenv():
 
         self.sheets["report_stages"] = (cfg["spreadsheet"]["report_stages"],
                                         cfg["spreadsheet"]["report_stages_id"])
+        self.sheets["report_tasks"] = (cfg["spreadsheet"]["report_tasks"],
+                                       cfg["spreadsheet"]["report_tasks_id"])
 
         self.column_project = cfg["spreadsheet"]["column_project"]
         self.table_project = cfg["spreadsheet"]["table_project"]
@@ -304,6 +306,9 @@ class Projectenv():
         if save:
             time.sleep(timeout)
             self.ss.run_prepared()
+
+    def sleep(self, timeout):
+        time.sleep(timeout)
 
     def get_project_on_row(self, num_row=None):
         ''' читает из таблицы проект

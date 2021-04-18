@@ -177,6 +177,7 @@ def write_date_to_google(num_row, project_id):
         txt_color = {"textFormat": {"foregroundColor": color_font}}
         env.ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
         env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
+    env.sleep(1)
     env.ss.run_prepared()
     return True
 
@@ -662,7 +663,7 @@ def main():
         sync_google_wrike(folders)
 
     if env.compare_param("R"):
-        report.create_report_table(Projectenv, sys.argv)
+        report.create_report_table(Projectenv, sys.argv, env.users_id)
     if env.compare_param("S"):
         strategy_transfer.start_reflect(env)
 

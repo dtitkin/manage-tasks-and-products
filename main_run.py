@@ -9,7 +9,7 @@ import strategy_transfer
 import report
 
 
-VERSION = '1.0'
+VERSION = '2.0'
 env = None  # объект для параметров проекта
 
 
@@ -183,7 +183,7 @@ def write_date_to_google(num_row, project_id):
 
 
 def sorted_tasks(task, all_task):
-    '''ищет рекусрсивно у вех подзадачи
+    '''ищет рекусрсивно у вехи подзадачи
       расставлет  в порядке обработки вложенные вехи раньше
       родительской вехи
     '''
@@ -200,8 +200,22 @@ def sorted_tasks(task, all_task):
 
 
 def close_move_stage(num_row, project_id):
-    ''' устанавливает статус выполненно или переносит веху на дату выполнения
+    ''' Проверяет и меняет статус. Перемещает дату вехи на сегодня или на
+        последнюю задачу.
+
+        Меняет статус на "Выполненно" если все задачи выполненны или отменены.
+        Если все задачи выполненны. То веху переносит на задачу с максимальной
+        датой.
+        Иначе переносит веху на сегодня.
+        По дополнительному параметру "E"  переносит веху на дату завершения
+        последней задачи.
+
+        параметры функции:
+            num_row - номер строки в гугл таблице проект из которой
+             обрабатывается
+            project_id - id проекта во wrike по которому обрабатываем задачи
     '''
+
     fields = ["customFields", "subTaskIds"]
     resp = env.wr.get_tasks(f"folders/{project_id}/tasks", subTasks="True",
                             fields=fields)
@@ -216,7 +230,7 @@ def close_move_stage(num_row, project_id):
 
     for k, task in sort_task.items():
         # по каждой вехе смотрим выполненны ли все подчиненные
-        # ищем их в all_task, если веху обновляем то менем ее в all task
+        # ищем их в all_task, если веху обновляем то менем ее в  all_task
         all_status = []
         task_date = make_date(task["dates"]["due"])
         max_date = task_date
@@ -248,7 +262,10 @@ def close_move_stage(num_row, project_id):
         if set_status == task["status"]:
             set_status = None
         dt = None
-        now_date = make_date()
+        if env.compare_param("E"):
+            now_date = max_date
+        else:
+            now_date = make_date()
         if task["status"] == "Active" or set_status == "Active":
             if now_date > task_date:
                 dt = env.wr.dates_arr(type_="Milestone",

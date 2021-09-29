@@ -365,7 +365,7 @@ class Wrike():
         resp = self.rs_get("contacts")
         id_dict = {}
         for user in resp:
-            if user['type'] == 'Person':
+            if user['type'] == 'Person' and not(user['deleted']):
                 user_mail = user["profiles"][0]["email"]
                 id_dict[user_mail] = user["id"]
         if self.debugMode:

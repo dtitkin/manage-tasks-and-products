@@ -417,7 +417,7 @@ class Projectenv():
         table_project = table_project[19:]
         for row_project in table_project:
             num_row += 1
-            if len(row_project) == 0:
+            if len(row_project) == 0 or en(row_project) == 1 :
                 continue
             if len(table_id) < num_row:
                 row_id = ["" for x in range(0, 30)]

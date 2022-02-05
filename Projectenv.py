@@ -93,11 +93,10 @@ class Projectenv():
         # обрабатываем список аргументов
         # 0 - сам скрипт
         # 1-й токен пользователя или admin для админа - логи только в терминал
-        # 1   help - помощь по параметрам запускаа
-        # 2-й -rp
-        # 3-й читаем если есть -rp -  менеджер проекта по которому фильтр
-        # 4-й -n
-        # 5-й читаем еслить есть -n номер строки котору обрабатывать
+        # или 1-й   help - помощь по параметрам запускаа
+        # 2-й * или номер строки
+        # 2-й или 3-й и далее ключ -> -rp -n -cv -do
+        # далее значение ключа
         if not line_argument:
             line_argument = ["", "admin"]
         if len(line_argument) == 1:
@@ -115,6 +114,9 @@ class Projectenv():
                 self.update_all_cv = True
             if key == "-do":
                 self.what_do = line_argument.pop(2)
+            if key != "*":
+                if key.isdigit():
+                    self.row_filter = int(key)
 
     def connect_db(self):
         if self.user_token == "admin" or self.user_token == "help":
@@ -137,11 +139,12 @@ class Projectenv():
             return False
         if self.user_token == "help":
             print(" user_token или help или admin. Обязательный параметр")
+            print(" * или номер строки для обработки. Не обязательный ")
             print(" -rp <'имя менеджера проекта для фильтра'>."
                   " Не обязательный.")
             print(" -n <номер_строки для фильтра>. Не обязательный.")
             print(" -cv обновить все пользовательские поля  Не обязательный.")
-            print((" -do <G,A,W,F,R,S> Что выполнять. одно или несколько"
+            print((" -do <G,A,W,F,R,S> Что выполнять. одно или несколько\n"
                    "Не обязательный."))
             print("    G  - загружать проекты из Гугл во wrike")
             print("    A  - удалять проекты во wrike ")
@@ -417,7 +420,7 @@ class Projectenv():
         table_project = table_project[19:]
         for row_project in table_project:
             num_row += 1
-            if len(row_project) == 0 or en(row_project) == 1 :
+            if len(row_project) == 0 or len(row_project) == 1 :
                 continue
             if len(table_id) < num_row:
                 row_id = ["" for x in range(0, 30)]

@@ -114,7 +114,7 @@ class Projectenv():
                 self.update_all_cv = True
             if key == "-do":
                 self.what_do = line_argument.pop(2)
-            if key != "*":
+            if key != "0":
                 if key.isdigit():
                     self.row_filter = int(key)
 

@@ -246,7 +246,6 @@ class Projectenv():
                 if user_val["email"] == email:
                     return user_name, user_val["group"]
             return "", ""
-
         table = self.ss.values_get(cell_user)
         users_from_id = {}
         users_from_name = {}
@@ -260,16 +259,24 @@ class Projectenv():
             users_from_name[row[0]]["email"] = row[2].strip(" ")
             lst_mail.append(row[2])
         id_dict = self.wr.id_contacts()
-        for email, id_user in id_dict.items():
+        for email, user in id_dict.items():
+            id_user, name_from_wr = user.values()
             users_from_id[id_user] = {}
             users_from_id[id_user]["email"] = email
             name_user, gr_user = find_name_from_email(email,
                                                       users_from_name)
 
-            users_from_id[id_user]["name"] = name_user
-            users_from_id[id_user]["group"] = gr_user
             if name_user:
                 users_from_name[name_user]["id"] = id_user
+                users_from_id[id_user]["name"] = name_user
+                users_from_id[id_user]["group"] = gr_user
+            else:
+                users_from_id[id_user]["name"] = name_from_wr
+                users_from_id[id_user]["group"] = ""
+                users_from_name[name_from_wr] = {}
+                users_from_name[name_from_wr]["id"] = id_user
+                users_from_name[name_from_wr]["group"] = ""
+                users_from_name[name_from_wr]["email"] = email
 
         # найдем помошника менеджера и запишем его к менеджеру
         for key, value in users_from_name.items():

@@ -99,6 +99,8 @@ def report_from_tasks(users_id):
         # перебираем исполнителей
         users_all = task["responsibleIds"]
         for user in users_all:
+            if users_id.get(user) is None:
+                continue
             user_name = users_id.get(user)["name"]
             user_group = users_id.get(user)["group"]
             resp_cf = task["customFields"]

@@ -367,7 +367,10 @@ class Wrike():
         for user in resp:
             if user['type'] == 'Person' and not(user['deleted']):
                 user_mail = user["profiles"][0]["email"]
-                id_dict[user_mail] = user["id"]
+                id_dict[user_mail] = {}
+                id_dict[user_mail]['id'] = user["id"]
+                id_dict[user_mail]['name'] = (user["firstName"] + " "
+                                              + user["lastName"])
         if self.debugMode:
             pprint(id_dict)
         return id_dict

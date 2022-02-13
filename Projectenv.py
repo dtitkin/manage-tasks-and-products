@@ -267,7 +267,6 @@ class Projectenv():
 
         # получаем всех ползователей из wrike. заполняем недостающие поля
         wrike_users = self.wr.get_all_users()
-        breakpoint()
         for id_user in wrike_users.keys():
             user = wrike_users[id_user]
             email = user["email"]

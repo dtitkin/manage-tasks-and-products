@@ -237,58 +237,65 @@ class Projectenv():
             return False
 
     def get_user_list(self, cell_user):
-        ''' возвращает два словаря пользователей
-        ключ по имени из гугл таблицы
-        ключ по id из wrike
+        ''' заполняет свойства класса
+            1. users_name - словарь:
+                ключ: имя пользователя в гугл таблице
+                значение: словарь:
+                    ключи: id, email, group, deleted, idhelper
+            2. users_id - словарь:
+                ключ: id пользователя во wrike
+                значение: словарь:
+                    ключи: name, email, group, deleted
         '''
-        def find_name_from_email(email, users_from_name):
-            for user_name, user_val, in users_from_name.items():
-                if user_val["email"] == email:
-                    return user_name, user_val["group"]
+        def find_in_sheet_user(email, sheet_users):
+            for user_name, user_param, in sheet_users.items():
+                if user_param["email"] == email:
+                    return user_name, user_param["group"]
             return "", ""
-        table = self.ss.values_get(cell_user)
-        users_from_id = {}
-        users_from_name = {}
-        lst_mail = []
-        for row in table:
-            if len(row) < 3:
+
+        # получаем всех пользователей из гугл таблицы
+        table_sheet_users = self.ss.values_get(cell_user)
+        sheet_users = {}
+        for row_shet_user in table_sheet_users:
+            if len(row_shet_user) < 3:
                 continue
-            users_from_name[row[0]] = {}  # имя пользователя
-            users_from_name[row[0]]["id"] = ""
-            users_from_name[row[0]]["group"] = row[1].strip(" ")
-            users_from_name[row[0]]["email"] = row[2].strip(" ")
-            lst_mail.append(row[2])
-        id_dict = self.wr.id_contacts()
-        for email, user in id_dict.items():
-            id_user, name_from_wr = user.values()
-            users_from_id[id_user] = {}
-            users_from_id[id_user]["email"] = email
-            name_user, gr_user = find_name_from_email(email,
-                                                      users_from_name)
+            user = sheet_users[row_shet_user[0]] = {}  # имя пользователя
+            user["id"] = ""
+            user["group"] = row_shet_user[1].strip(" ")
+            user["email"] = row_shet_user[2].strip(" ")
+            user["deleted"] = False
+
+        # получаем всех ползователей из wrike. заполняем недостающие поля
+        wrike_users = self.wr.get_all_users()
+        breakpoint()
+        for id_user in wrike_users.keys():
+            user = wrike_users[id_user]
+            email = user["email"]
+            if email:
+                name_user, group_user = find_in_sheet_user(email, sheet_users)
+            else:
+                name_user, group_user = '', ''
 
             if name_user:
-                users_from_name[name_user]["id"] = id_user
-                users_from_id[id_user]["name"] = name_user
-                users_from_id[id_user]["group"] = gr_user
+                sheet_users[name_user]["id"] = id_user
+                sheet_users[name_user]["deleted"] = user["deleted"]
+                user["name"] = name_user
+                user["group"] = group_user
             else:
-                users_from_id[id_user]["name"] = name_from_wr
-                users_from_id[id_user]["group"] = ""
-                users_from_name[name_from_wr] = {}
-                users_from_name[name_from_wr]["id"] = id_user
-                users_from_name[name_from_wr]["group"] = ""
-                users_from_name[name_from_wr]["email"] = email
+                user["group"] = ""
+                sheet_users[user["name"]] = user.copy()
 
         # найдем помошника менеджера и запишем его к менеджеру
-        for key, value in users_from_name.items():
+        for key, value in sheet_users.items():
             if value["group"].find("[") > 0:
                 group, name = value["group"].split("[")
                 name = name.strip("]")
-                user = users_from_name.get(name)
+                user = sheet_users.get(name)
                 if user:
                     user["idhelper"] = value["id"]
 
-        self.users_name = users_from_name.copy()
-        self.users_id = users_from_id.copy()
+        self.users_name = sheet_users.copy()
+        self.users_id = wrike_users.copy()
 
     def read_holiday(self, cell_calendar):
         from datetime import date
@@ -427,7 +434,7 @@ class Projectenv():
         table_project = table_project[19:]
         for row_project in table_project:
             num_row += 1
-            if len(row_project) == 0 or len(row_project) == 1 :
+            if len(row_project) == 0 or len(row_project) == 1:
                 continue
             if len(table_id) < num_row:
                 row_id = ["" for x in range(0, 30)]
@@ -510,6 +517,11 @@ class Projectenv():
                 group_user["Tech"].append(user)
 
         if remove:
+            # удалим все пользователей у которых признак deleted
+            tmp_lst = [vl for vl in self.users_id.keys()
+                       if self.users_id[vl]['deleted'] is True]
+            return_list.extend(tmp_lst)
+
             if len(group_user["Tech"]) > 0:
                 tmp_lst = [vl for vl in group_user["Tech"] if vl != teh_id]
                 return_list.extend(tmp_lst)

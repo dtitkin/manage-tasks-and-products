@@ -527,6 +527,7 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
         return True
     return False
 
+
 def sync_google_wrike(folders):
 
     env.db.out("Синхронизация Гугл и Wrike", prn_time=True)

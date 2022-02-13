@@ -359,21 +359,28 @@ class Wrike():
             return_descr += "<li>" + one_str + "</li>"
         return return_descr
 
-    def id_contacts(self):
-        '''возвращает id всех пользователей Wrike
+    def get_all_users(self):
+        '''возвращает словарь всех пользователей Wrike
+            ключ: id пользователя
+            значение: словарь
+                ключи: email, name, deleted
         '''
+        all_users = {}
         resp = self.rs_get("contacts")
-        id_dict = {}
         for user in resp:
-            if user['type'] == 'Person' and not(user['deleted']):
-                user_mail = user["profiles"][0]["email"]
-                id_dict[user_mail] = {}
-                id_dict[user_mail]['id'] = user["id"]
-                id_dict[user_mail]['name'] = (user["firstName"] + " "
-                                              + user["lastName"])
+            if user['type'] == 'Person':
+                if user['deleted']:
+                    user_mail = ""
+                else:
+                    user_mail = user["profiles"][0]["email"]
+                single_user = all_users[user["id"]] = {}
+                single_user['email'] = user_mail
+                single_user['name'] = (user["firstName"] + " "
+                                       + user["lastName"])
+                single_user['deleted'] = user['deleted']
         if self.debugMode:
-            pprint(id_dict)
-        return id_dict
+            pprint(all_users)
+        return all_users
 
     def id_folders_on_name(self, foldersname_list):
         ' по имени папки или проекта возвращает id проекта'

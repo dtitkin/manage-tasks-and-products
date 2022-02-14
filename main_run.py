@@ -5,7 +5,6 @@ from collections import OrderedDict
 
 import Projectenv
 from time_func import now_str, make_date, read_date_for_project
-import strategy_transfer
 import report
 
 
@@ -28,7 +27,7 @@ def chek_old_session(row_project, num_row):
 
 
 def new_product(row_project, num_row, date_start, folders):
-    ''' По признаку G в строке продукта создаем новый проект во Wrike
+    ''' По признаку G в строке Google Sheet создаем новый проект во Wrike
     '''
     # обозначим в гугл таблице начало работы
     env.print_ss("new product:", f"{env.column_log}{num_row}")
@@ -375,7 +374,7 @@ def if_edit_table(num_row, row_project, folders):
     '''
 
     if not row_project["id_project"]:
-        env.db.out(f"нет ID проекта", num_row=num_row,
+        env.db.out("нет ID проекта", num_row=num_row,
                    runtime_error="y", error_type="ошибка данных Google")
         return False
     my_folder = folders.get(row_project["project"])
@@ -682,8 +681,6 @@ def main():
 
     if env.compare_param("R"):
         report.create_report_table(Projectenv, sys.argv, env.users_id)
-    if env.compare_param("S"):
-        strategy_transfer.start_reflect(env)
 
     env.sheet_now("work_sheet")
     t_finish = time.time()

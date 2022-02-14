@@ -136,3 +136,5 @@ setenv.sh
 tmp*.py
 .service
 service/
+.vscode
+.vscode/

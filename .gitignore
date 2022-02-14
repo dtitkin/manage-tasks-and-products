@@ -134,3 +134,5 @@ setenv.sh
 .DS_Store
 *.cfg
 tmp*.py
+.service
+service/

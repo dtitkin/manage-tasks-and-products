@@ -151,29 +151,30 @@ def write_date_to_google(num_row, project_id):
         if num_task[0:2] == "00" and len(num_stage) == 1:
             due_date = task["dates"]["due"]
             y, m, d = due_date[0:10].split("-")
-            date_all_stage[int(num_stage)] = f"{d}.{m}.{y}"
-    date_for_google_sheet = [date_all_stage[min(date_all_stage)],
-                             date_all_stage[max(date_all_stage)]]
+            date_all_stage[int(num_stage)] = {
+                "date": f"{d}.{m}.{y}",
+                "finish": task["status"] == "Completed"
+            }
+
+    dates_for_google = [date_all_stage[min(date_all_stage)]["date"],
+                        date_all_stage[max(date_all_stage)]["date"]]
     env.sheet_now("work_sheet")
     cells_range = (f"{env.columns_stage[0]}{num_row}:"
                    f"{env.columns_stage[1]}{num_row}")
-    env.ss.prepare_setvalues(cells_range, [date_for_google_sheet])
-    '''
-    for n, f in enumerate(lst_finish, 0):
-        column = env.columns_stage[n]
-        txt_field = "userEnteredFormat.textFormat"
-        bcg_field = "userEnteredFormat.backgroundColor"
-        cells = f"{column}{num_row}:{column}{num_row}"
-        if f != "Finish":
-            color_bc = env.color_bc_finish
-            color_font = env.color_font_finish
-        else:
-            color_bc = env.color_bc
-            color_font = env.color_font
-        bg_color = {"backgroundColor": color_bc}
-        txt_color = {"textFormat": {"foregroundColor": color_font}}
-        env.ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
-        env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)'''
+    env.ss.prepare_setvalues(cells_range, [dates_for_google])
+
+    cells = f"{env.columns_stage[0]}{num_row}:{env.columns_stage[1]}{num_row}"
+    txt_field = "userEnteredFormat.textFormat"
+    bcg_field = "userEnteredFormat.backgroundColor"
+    if date_all_stage[max(date_all_stage)]["finish"] is True:
+        bg_color = {"backgroundColor": env.color_bc_finish}
+        txt_color = {"textFormat": {"foregroundColor": env.color_font_finish}}
+    else:
+        bg_color = {"backgroundColor": env.color_bc}
+        txt_color = {"textFormat": {"foregroundColor": env.color_font}}
+    env.ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
+    env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
+
     env.sleep(1)
     env.ss.run_prepared()
     return True

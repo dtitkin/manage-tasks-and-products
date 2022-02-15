@@ -51,10 +51,10 @@ class Projectenv():
         self.columns_stage = columns_stage.split(",")
         self.cell_progress = cfg["spreadsheet"]["cell_progress"]
         self.column_comand = cfg["spreadsheet"]["column_comand"]
-        self.color_bc_finish = Spreadsheet.htmlColorToJSON("#cfe2f3")
-        self.color_font_finish = Spreadsheet.htmlColorToJSON("#000000")
-        self.color_bc = Spreadsheet.htmlColorToJSON("#6aa84f")
-        self.color_font = Spreadsheet.htmlColorToJSON("#ffffff")
+        self.color_bc = Spreadsheet.htmlColorToJSON("#cfe2f3")
+        self.color_font = Spreadsheet.htmlColorToJSON("#000000")
+        self.color_bc_finish = Spreadsheet.htmlColorToJSON("#6aa84f")
+        self.color_font_finish = Spreadsheet.htmlColorToJSON("#ffffff")
         custom_value_name = cfg["spreadsheet"]["custom_value_name"]
         self.custom_value_name = custom_value_name.split(",")
         custom_value_key = cfg["spreadsheet"]["custom_value_key"]

@@ -125,42 +125,40 @@ def test_all_parametr(row_project, num_row):
         env.db.out(f"технолог {row_project['tech']} нет во Wrike",
                    num_row=num_row,
                    runtime_error="y", error_type="исходные данные")
-    in_all = True
-    if len(row_project["dates"]) < 8:
-        in_all = False
-    if not in_all:
+
+    if len(row_project["dates"]) < 1:
         ok = False
         env.db.out("не установленны даты этапов", num_row=num_row,
                    runtime_error="y", error_type="исходные данные")
-
+        mesage = "установите дату старта проекта"
+        env.print_ss(mesage, f"{env.column_link}{num_row}")
     return ok
 
 
 def write_date_to_google(num_row, project_id):
     ''' устанавливает даты из wrike Гугл таблицу
-        Отмечает этапы выполеннными
+        Отмечает состояние буфера проекта
     '''
     fields = ["customFields"]
     resp = env.wr.get_tasks(f"folders/{project_id}/tasks", type="Milestone",
                             fields=fields)
-    lst_finish = ["" for x in range(0, 8)]
-    lst_values = [["" for x in range(0, 8)]]
+    date_all_stage = {}
 
     for task in resp:
-        resp_cf = task["customFields"]
-        num_stage = env.find_cf(resp_cf, "num_stage")
-        num_task = env.find_cf(resp_cf, "num_task")
+        task_field = task["customFields"]
+        num_stage = env.find_cf(task_field, "num_stage")
+        num_task = env.find_cf(task_field, "num_task")
         if num_task[0:2] == "00" and len(num_stage) == 1:
             due_date = task["dates"]["due"]
             y, m, d = due_date[0:10].split("-")
-            value = f"{d}.{m}.{y}"
-            lst_values[0][int(num_stage) - 1] = value
-            if task["status"] == "Completed":
-                lst_finish[int(num_stage) - 1] = "Finish"
+            date_all_stage[int(num_stage)] = f"{d}.{m}.{y}"
+    date_for_google_sheet = [date_all_stage[min(date_all_stage)],
+                             date_all_stage[max(date_all_stage)]]
     env.sheet_now("work_sheet")
     cells_range = (f"{env.columns_stage[0]}{num_row}:"
-                   f"{env.columns_stage[-1]}{num_row}")
-    env.ss.prepare_setvalues(cells_range, lst_values)
+                   f"{env.columns_stage[1]}{num_row}")
+    env.ss.prepare_setvalues(cells_range, [date_for_google_sheet])
+    '''
     for n, f in enumerate(lst_finish, 0):
         column = env.columns_stage[n]
         txt_field = "userEnteredFormat.textFormat"
@@ -175,7 +173,7 @@ def write_date_to_google(num_row, project_id):
         bg_color = {"backgroundColor": color_bc}
         txt_color = {"textFormat": {"foregroundColor": color_font}}
         env.ss.prepare_setcells_format(cells, bg_color, fields=bcg_field)
-        env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)
+        env.ss.prepare_setcells_format(cells, txt_color, fields=txt_field)'''
     env.sleep(1)
     env.ss.run_prepared()
     return True

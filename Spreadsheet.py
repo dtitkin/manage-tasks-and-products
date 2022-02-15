@@ -161,7 +161,9 @@ class Spreadsheet():
     def prepare_setcells_many_format(self, cellsRange, formatsJSON,
                                      fields="userEnteredFormat"):
 
-        rows = [{"values": [{"userEnteredFormat": cellFormat} for cellFormat in  rowFormats]} for rowFormats in formatsJSON]
+        rows = [{"values": [{"userEnteredFormat": cellFormat}
+                            for cellFormat in rowFormats]}
+                for rowFormats in formatsJSON]
         self.requests.append(
             {
                 "updateCells": {"range": self.togrid_range(cellsRange),
@@ -306,6 +308,7 @@ class Spreadsheet():
             first_symbol = chr(rangeAZ[cont_symbol - 1])
             second_symbol = chr(rangeAZ[num_symbol - 1])
         return first_symbol + second_symbol
+
 
 # Функции тестирования класса
 '''  CREDENTIALS_FILE = 'creds.json'

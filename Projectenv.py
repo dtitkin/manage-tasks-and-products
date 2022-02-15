@@ -400,7 +400,9 @@ class Projectenv():
             return_dict["log"] = row_id[1]
             return_dict["id_project"] = row_id[2]
             return_dict["comand"] = row_project[0]
-            return_dict["permalink"] = row_project[1]
+            return_dict["permalink"] = ''
+            if len(row_project) > 1:
+                return_dict["permalink"] = row_project[1]
 
             for key, index in zip(self.custom_value_key,
                                   self.custom_value_adr):
@@ -411,9 +413,8 @@ class Projectenv():
             return_dict["dates"] = tmp_lst.copy()
             return_dict["template_id"] = None
             return_dict["template_str"] = None
-            if len(row_project) == 11:
-                nrt = row_project[10]
-                return_dict["template_str"] = nrt
+            if len(row_project) == 5:
+                return_dict["template_str"] = row_project[4]
 
             return return_dict
 
@@ -433,7 +434,7 @@ class Projectenv():
         table_project = table_project[19:]
         for row_project in table_project:
             num_row += 1
-            if len(row_project) == 0 or len(row_project) == 1:
+            if len(row_project) == 0:  # or len(row_project) == 1:
                 continue
             if len(table_id) < num_row:
                 row_id = ["" for x in range(0, 30)]

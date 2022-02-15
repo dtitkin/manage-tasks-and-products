@@ -497,10 +497,10 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
         status = None
         if not personal_template:
             #  проверяем на статус выполненно
-            if num_stage in finish_status:
-                status = "Completed"
-            else:
-                status = "Active"
+            # if num_stage in finish_status:
+            #    status = "Completed"
+            # else:
+            status = "Active"
             # у 'этапов' устанавливаем дату из таблицы
             if type_task == "Milestone" and num_task[0:2] == "00":
                 if dates_stage.get(num_stage):

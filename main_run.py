@@ -429,30 +429,10 @@ def if_edit_table(num_row, row_project, folders):
         return False
 
 
-def read_stage_info(num_row):
-    ''' запоминаем из таблицы значение, цвет шрифта и цвет ячейки
-    '''
-    finish_list = []
-    dates_stage = {}
-    env.sheet_now("work_sheet")
-    cells_range = (f"{env.columns_stage[0]}{num_row}:"
-                   f"{env.columns_stage[-1]}{num_row}")
-    lst_status = env.ss.read_color_cells(cells_range)[0]
-    for k, cl in enumerate(env.columns_stage, 1):
-        color_stage = (lst_status[k - 1][0], lst_status[k - 1][1])
-        stage_value = lst_status[k - 1][2]
-        if str(color_stage) == str(env.COLOR_FINISH):
-            # запоминаем у каких этапов нужно установить Finish
-            finish_list.append(str(k))
-        dates_stage[str(k)] = make_date(stage_value)
-    return finish_list, dates_stage
-
-
-def update_sub_task(id_and_cfd, rp, tech, num_row,
-                    finish_status, dates_stage, personal_template):
+def update_sub_task(id_and_cfd, rp, tech, num_row, personal_template):
     ''' Обновление задач в проекте. Установка исполнителей,
         пользовательских
-        полей, статуса выполненно
+        полей
     '''
     # обозначим в таблице что начали этап
     env.print_ss("update sub task:", f"{env.column_log}{num_row}")
@@ -482,7 +462,6 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
         cf = env.wr.custom_field_arr(cfd)
         # определям список пользователей которых нужно исключить из задачи
         ownersid = task["responsibleIds"]
-        num_stage = env.find_cf(resp_cf, "num_stage")
         num_task = env.find_cf(resp_cf, "num_task")
         remove_users = env.find_task_user(ownersid, rp, tech,
                                           num_task)
@@ -491,21 +470,8 @@ def update_sub_task(id_and_cfd, rp, tech, num_row,
                                            False)
         else:
             add_users = None
-
-        type_task = task["dates"]["type"]
         dt = None
         status = None
-        if not personal_template:
-            #  проверяем на статус выполненно
-            # if num_stage in finish_status:
-            #    status = "Completed"
-            # else:
-            status = "Active"
-            # у 'этапов' устанавливаем дату из таблицы
-            if type_task == "Milestone" and num_task[0:2] == "00":
-                if dates_stage.get(num_stage):
-                    due = dates_stage[num_stage].isoformat()
-                    dt = env.wr.dates_arr(type_="Milestone", due=due)
         #  обновляем задачу
         resp_upd = env.wr.update_task(task["id"],
                                       removeResponsibles=remove_users,
@@ -560,16 +526,8 @@ def sync_google_wrike(folders):
             # признак выполненно, перенесем вехи на нужные даты
             env.db.out("Обновление задач в проекте", num_row=num_row)
 
-            # считываем статусы и даты этапов из таблицы
-            finish_status = None
-            dates_stage = None
-            # ликвидирован функционал установки этапа выполненным
-            # if not row_project["template_id"]:
-            #    finish_status, dates_stage = read_stage_info(num_row)
-            # обновляем задачи с учетом всех статусов
             ok = update_sub_task(id_and_cfd, row_project["rp"],
                                  row_project["tech"], num_row,
-                                 finish_status, dates_stage,
                                  row_project["template_id"])
             if not ok:
                 env.db.out("!Выполнение прервано!", num_row=num_row,

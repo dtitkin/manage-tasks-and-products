@@ -33,15 +33,16 @@ def make_date(usr_date=None):
         return date(int(lst_date[0]), int(lst_date[1]), int(lst_date[2]))
 
 
-def read_date_for_project(end_stage, len_stage, holydays):
+def read_date_for_project(end_stage, len_stage, holydays, offset=True):
     ''' считываем с таблицы дату завершения этапа и по длительности этапа
         определяем дату задачи в этапе.
     '''
-    date_stage = make_date(end_stage)  # из поля забираем только дату
-    date_for_task = busday_offset(date_stage, -1 * (len_stage - 1),
-                                  weekmask="1111100",
-                                  holidays=holydays,
-                                  roll="forward")
+    date_for_task = make_date(end_stage)  # из поля забираем только дату
+    if offset:
+        date_for_task = busday_offset(date_for_task, -1 * (len_stage - 1),
+                                      weekmask="1111100",
+                                      holidays=holydays,
+                                      roll="forward")
     date_for_task = datetime_as_string(date_for_task)
     # print("Дата старта проекта", date_for_task)
     return date_for_task

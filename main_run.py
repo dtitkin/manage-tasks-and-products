@@ -514,7 +514,7 @@ def sync_google_wrike(folders):
             #  определяем дату для старта проекта
             len_stage = env.get_len_stage("1")
             date_start = read_date_for_project(row_project["dates"][0],
-                                               len_stage, env.HOLYDAY)
+                                               len_stage, env.HOLYDAY, False)
             # проверим персональный шаблон
             if row_project["template_id"]:
                 m = f"Шаблон из строки {row_project['template_str']}"

@@ -43,6 +43,6 @@ def read_date_for_project(end_stage, len_stage, holydays, offset=True):
                                       weekmask="1111100",
                                       holidays=holydays,
                                       roll="forward")
-    date_for_task = datetime_as_string(date_for_task)
+        date_for_task = datetime_as_string(date_for_task)
     # print("Дата старта проекта", date_for_task)
     return date_for_task
